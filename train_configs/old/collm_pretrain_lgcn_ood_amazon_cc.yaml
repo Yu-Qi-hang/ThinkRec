@@ -1,0 +1,93 @@
+model:
+  arch: mini_gpt4rec_v2
+  model_type: pretrain_vicuna
+  freeze_rec: True
+  freeze_proj: False  # stage 1: proj false, lora: false
+  freeze_lora: True #  sateg2: proj true, lora false
+  max_txt_len: 1024
+  proj_token_num: 1
+  proj_mid_times: 10
+  proj_drop: 0
+  end_sym: "###"
+  prompt_path: "prompts/rec_alignment_amazon.txt"
+  # prompt_template: '### Input: {} \n### Response:'
+  prompt_template: '{}'
+  # Vicuna
+  llama_model: "/home/sist/zyang/LLM/PretrainedModels/vicuna/working-v0/"
+  user_num: -100
+  item_num: -100
+  ans_type: 'v2'
+  rec_model: "lightgcn" #[MF, Lightgcn]
+  lora_config:
+    use_lora: True
+    r: 8
+    alpha: 16
+    target_modules: ["q_proj", "v_proj"] 
+    dropout: 0.05
+  rec_config: #lgcn_config
+    dataset: ml1m
+    gcn_layers: 2
+    keep_prob: 0.6
+    A_n_fold: 100
+    A_split: False
+    dropout: False
+    pretrain: 0
+    init_emb: 1e-1
+    user_num: -100
+    item_num: -100
+    embedding_size: 256
+    embed_size: 256
+    pretrained_path: /home/sist/zyang/LLM/PretrainedModels/lgcn/0925-OODv2_lgcn_book_best_model_d256lr-0.0001wd1e-07.pth
+  
+  # ckpt: /home/sist/zyang/LLM/minigpt4recLog/20230919171/checkpoint_best.pth # tune proj based on tallrec
+
+datasets:
+  movie_ood:
+    path: /home/sist/zyang/LLM/datasets/book/  #"~/LLM/MiniGPT-4/dataset/ml-100k/"
+    # path: "~/LLM/MiniGPT-4/dataset/ml-1m/"` 
+    # path: /home/sist/zyang/LLM/datasets/ml-1m
+    data_type: default
+    build_info:
+      # storage: /path/to/cc_sbu_dataset/{00000..01255}.tar
+      storage: /home/sist/zyang/LLM/datasets/book/ #~/LLM/MiniGPT-4/dataset/ml-100k/
+      # storage: /home/sist/zyang/LLM/datasets/ml-1m/
+
+run:
+  task: rec_pretrain
+  # optimizer
+  lr_sched: "linear_warmup_cosine_lr"
+  # init_lr: 1e-4
+  # min_lr: 8e-5c
+  init_lr: 1e-2 #1e-4
+  min_lr: 8e-5
+  warmup_lr: 1e-5
+  # init_lr: 3e-5
+  # min_lr: 1e-5
+  # warmup_lr: 1e-6
+  mode: 'v2' # stage1: v1, 
+
+  weight_decay: 1e-3 #0.05
+  max_epoch: 200
+  iters_per_epoch: 100 #100 #50 #200
+  batch_size_train: 8 #48
+  batch_size_eval: 64 #48
+  num_workers: 4
+  warmup_steps: 200 #200
+
+  seed: 42
+  # output_dir: "output"
+  output_dir: /home/sist/zyang/LLM/minigpt4recLog
+  # output_dir: "home/zyang/LLM/minigpt4recLog/minigpt4rec_finetune"
+
+  amp: True
+  resume_ckpt_path: null
+
+  evaluate: False
+  train_splits: ["train"]
+  valid_splits: ["valid"]
+  test_splits: ["test","valid"]
+
+  device: "cuda"
+  world_size: 1
+  dist_url: "env://"
+  distributed: True

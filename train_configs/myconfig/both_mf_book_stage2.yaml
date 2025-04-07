@@ -1,0 +1,92 @@
+model:
+  arch: mini_gpt4rec_v3
+  model_type: pretrain_vicuna
+  freeze_rec: True
+  
+  # #stage1
+  # freeze_proj: True #    
+  # freeze_lora: False #
+  # prompt_path: "prompts/tallrec_amazon.txt"
+
+  #stage2
+  freeze_proj: False
+  freeze_lora: True
+  prompt_path: "prompts/collm_amazon_.txt"
+
+  max_txt_len: 4096
+  proj_token_num: 1
+  proj_drop: 0
+  proj_mid_times: 10
+  end_sym: "###"
+  prompt_template: '{}'
+  llama_model: "/data/yuqihang/model/Meta-Llama-3-8B-Instruct/" #"/data/yuqihang/model/vicuna-7b/vicuna-7b-v0/"
+  user_num: -100
+  item_num: -100
+  ans_type: 'v2'
+  rec_model: "MF" #[MF, lightgcn,.....], see "Rec2Base" class in  minigpt4/models/rec_model.py
+  lora_config:
+    use_lora: True
+    r: 8
+    alpha: 16
+    target_modules: ["q_proj", "v_proj"] # ['lm_head'] ##["lm_head"] # ['lm_head'] ['lm_head'] #
+    dropout: 0.05
+  rec_config:
+    user_num: -100
+    item_num: -100
+    embedding_size: 256
+    pretrained_path: /data/yuqihang/result/CoLLM/checkpoints/mf/0228_booknew_best_model_d256_lr0.001_wd1e-06.pth
+    
+
+  
+  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250311155/checkpoint_best.pth
+
+  
+
+datasets:
+  amazon_ood:
+    path: /data/yuqihang/datasets/collm-datasets/bookdu/
+    data_type: default
+    build_info:
+      seq_len: 10
+      cans_num: 1
+      use_ids: True
+      use_desc: True
+      storage: /data/yuqihang/datasets/collm-datasets/bookdu/
+
+run:
+  task: rec_pretrain
+  # optimizer
+  lr_sched: "linear_warmup_cosine_lr"  # "linear_warmup_step_lr"
+  init_lr: 1e-4
+  min_lr: 8e-5
+  warmup_lr: 1e-5
+  # init_lr: 3e-5
+  # min_lr: 1e-5
+  # warmup_lr: 1e-6
+  mode: 'v3' # stage1: v1, 
+
+  weight_decay: 1e-3 #0.05
+  max_epoch: 1000
+  iters_per_epoch: 800 #100 #50 #200
+  batch_size_train: 1 #48
+  batch_size_eval: 2 #48
+  num_workers: 2
+  warmup_steps: 200 #200
+
+  seed: 42
+  # output_dir: "output"
+  output_dir: /data/yuqihang/result/CoLLM/reproduce
+
+  amp: True
+  resume_ckpt_path: null
+
+  evaluate: False # False True
+  train_splits: ["train"]
+  valid_splits: ["valid"]
+  test_splits: ["test"]
+  # test_splits: ["test_warm", "test_cold", "test", "valid"]
+
+  device: "cuda"
+  world_size: 1
+  dist_url: "env://"
+  distributed: False

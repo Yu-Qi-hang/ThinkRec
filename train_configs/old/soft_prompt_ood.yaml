@@ -1,0 +1,85 @@
+model:
+  arch: mini_gpt4rec_v2
+  model_type: pretrain_vicuna
+  freeze_rec: True
+  freeze_proj: False  # stage 1: proj false, lora: false
+  freeze_lora: False #  sateg2: proj true, lora false
+  max_txt_len: 1024
+  proj_token_num: 3
+  proj_drop: 0
+  proj_mid_times: 10 # not used
+  end_sym: "###"
+  prompt_path: "prompts/softprompt.txt"
+  prompt_template: '{}' 
+  # Vicuna
+  # llama_model: "/home/sist/zyang/LLM/PretrainedModels/vicuna/working-v0/"
+  llama_model: "/data/zyang/LLM/PretrainedModels/vicuna/working-v0/"
+  user_num: -100
+  item_num: -100
+  ans_type: 'v2'
+  rec_model: "soft_prompt"
+  lora_config:
+    use_lora: True
+    r: 8
+    alpha: 16
+    target_modules: ["q_proj", "v_proj"] # ['lm_head'] ##["lm_head"] # ['lm_head'] ['lm_head'] #
+    dropout: 0.05
+  rec_config:
+    user_num: -100
+    item_num: -100
+    embedding_size: 4096 # the size of the LLM token embedding
+    pretrained_path: not_have
+    
+  # ckpt: /home/sist/zyang/LLM/minigpt4recLog/20230918143/checkpoint_best.pth #TALLRec
+ 
+  
+  
+
+datasets:
+  movie_ood:
+    
+    path: /data/zyang/datasets/ml-1m/
+    
+    data_type: default
+    build_info:
+      
+      storage: /data/zyang/datasets/ml-1m/
+      # storage: /home/sist/zyang/LLM/datasets/ml-1m/
+
+run:
+  task: rec_pretrain
+  # optimizer
+  lr_sched: "linear_warmup_cosine_lr"  # "linear_warmup_step_lr"
+  # init_lr: 1e-4
+  # min_lr: 8e-5c
+  init_lr: 1e-4
+  min_lr: 8e-5
+  warmup_lr: 1e-5
+  mode: 'v2' # stage1: v1, 
+
+  weight_decay: 1e-3 #0.05
+  max_epoch: 1000
+  iters_per_epoch: 50 
+  batch_size_train: 16 
+  batch_size_eval: 64 
+  num_workers: 4
+  warmup_steps: 200 
+
+  seed: 42
+  # output_dir: "output"
+  # output_dir: /home/sist/zyang/LLM/minigpt4recLog
+  output_dir: /data2/zyang/minigpt4rec-log/
+  # output_dir: "home/zyang/LLM/minigpt4recLog/minigpt4rec_finetune"
+
+  amp: True
+  resume_ckpt_path: null
+
+  evaluate: True
+  train_splits: ["train"]
+  valid_splits: ["valid"]
+  test_splits: ["test","valid"]
+
+  device: "cuda"
+  world_size: 1
+  dist_url: "env://"
+  distributed: True

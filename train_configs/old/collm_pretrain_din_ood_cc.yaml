@@ -1,0 +1,92 @@
+model:
+  arch: mini_gpt4rec_v2
+  model_type: pretrain_vicuna
+  freeze_rec: True
+  freeze_proj: False  # stage 1: proj false, lora: false
+  freeze_lora: True #  sateg2: proj true, lora false
+  max_txt_len: 1024
+  proj_token_num: 1
+  proj_mid_times: 10
+  proj_drop: 0
+  end_sym: "###"
+  prompt_path: "prompts/rec_alignment_ml_dcn.txt"
+  prompt_template: '{}'
+  llama_model: "/home/sist/zyang/LLM/PretrainedModels/vicuna/working-v0/"
+  user_num: -100
+  item_num: -100
+  ans_type: 'v2'
+  rec_model: "DIN" #[MF, Lightgcn, sasrec]
+  lora_config:
+    use_lora: True
+    r: 8
+    alpha: 16
+    target_modules: ["q_proj", "v_proj"] #['lm_head'] #["q_proj", "v_proj",'k_proj','o_proj']
+    dropout: 0.05
+  rec_config: #sasrec_config
+    dataset: ml1m
+    user_num: -100
+    item_num: -100
+    embedding_size: 192
+    embed_size: 192
+    drop: 0.2
+    l2_emb: 1e-4 # not used
+    maxlen: 10
+
+    pretrained_path: /home/sist/zyang/LLM/PretrainedModels/din/1010_ml_DIN_lr0.0001-dp-0.2-wd-0.0001loadPFalse.pt
+  # ckpt: /home/sist/zyang/LLM/minigpt4recLog/20231011143/checkpoint_best.pth
+
+
+datasets:
+  movie_ood_sasrec:
+    path: /home/sist/zyang/LLM/datasets/ml-1m/  #"~/LLM/MiniGPT-4/dataset/ml-100k/"
+    data_type: default
+    build_info:
+      # storage: /path/to/cc_sbu_dataset/{00000..01255}.tar
+      storage: /home/sist/zyang/LLM/datasets/ml-1m/ #~/LLM/MiniGPT-4/dataset/ml-100k/
+     
+run:
+  task: rec_pretrain
+  # optimizer
+  lr_sched: "linear_warmup_cosine_lr"
+  # init_lr: 1e-4
+  # min_lr: 8e-5c
+  init_lr: 1e-3
+  min_lr: 8e-5
+  warmup_lr: 1e-5
+  # init_lr: 3e-5
+  # min_lr: 1e-5
+  # warmup_lr: 1e-6
+  mode: 'v2' # stage1: v1, 
+
+  # weight_decay: 1e-3 #0.05
+  # max_epoch: 200
+  # iters_per_epoch: 100 #100 #50 #200
+  # batch_size_train: 8 #48
+  # batch_size_eval: 64 #48
+  # num_workers: 4
+  # warmup_steps: 200 #200
+  weight_decay: 1e-3 #0.05
+  max_epoch: 200
+  iters_per_epoch: 50 #100 #50 #200
+  batch_size_train: 16 #48
+  batch_size_eval: 64 #48
+  num_workers: 4
+  warmup_steps: 200
+
+  seed: 42
+  # output_dir: "output"
+  # output_dir: /data2/zyang/minigpt4rec-log/
+  output_dir: /home/sist/zyang/LLM/minigpt4recLog
+
+  amp: True
+  resume_ckpt_path: null
+
+  evaluate: False
+  train_splits: ["train"]
+  valid_splits: ["valid"]
+  test_splits: ["test","valid"]
+
+  device: "cuda"
+  world_size: 1
+  dist_url: "env://"
+  distributed: True

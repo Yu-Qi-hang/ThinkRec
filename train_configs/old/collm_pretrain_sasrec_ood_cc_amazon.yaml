@@ -1,0 +1,92 @@
+model:
+  arch: mini_gpt4rec_v2
+  model_type: pretrain_vicuna
+  freeze_rec: True
+  freeze_proj: False  # stage 1: proj false, lora: false
+  freeze_lora: True #  sateg2: proj true, lora false
+  max_txt_len: 1024
+  proj_token_num: 1
+  proj_mid_times: 15 #20 #10
+  proj_drop: 0
+  end_sym: "###"
+  prompt_path: "prompts/rec_alignment_amazon.txt"
+  # prompt_template: '### Input: {} \n### Response:'
+  prompt_template: '{}'
+
+  llama_model: "/home/sist/zyang/LLM/PretrainedModels/vicuna/working-v0/"
+ 
+  user_num: -100
+  item_num: -100
+  ans_type: 'v2'
+  rec_model: "sasrec" #[MF, Lightgcn, sasrec]
+  lora_config:
+    use_lora: True
+    r: 8
+    alpha: 16
+    target_modules: ["q_proj", "v_proj"] #['lm_head'] #["q_proj", "v_proj",'k_proj','o_proj']
+    dropout: 0.05
+  rec_config: #sasrec_config
+    dataset: ml1m
+    user_num: -100
+    item_num: -100
+    embedding_size: 64
+    embed_size: 64
+    hidden_units: 64
+    num_blocks: 2
+    num_heads: 1
+    dropout_rate: 0.2
+    l2_emb: 1e-4 # not used
+    maxlen: 20
+
+    pretrained_path: xxxxxx
+    
+  
+  ckpt: xxxxxxx 
+
+datasets:
+  amazon_ood_sasrec:
+    path: /home/sist/zyang/LLM/datasets/book/  #"~/LLM/MiniGPT-4/dataset/ml-100k/"
+    # path: "~/LLM/MiniGPT-4/dataset/ml-1m/"` 
+    # path: /home/sist/zyang/LLM/datasets/ml-1m
+    data_type: default
+    build_info:
+      # storage: /path/to/cc_sbu_dataset/{00000..01255}.tar
+      storage: /home/sist/zyang/LLM/datasets/book/ #~/LLM/MiniGPT-4/dataset/ml-100k/
+      # storage: /home/sist/zyang/LLM/datasets/ml-1m/
+
+run:
+  task: rec_pretrain
+  # optimizer
+  lr_sched: "linear_warmup_cosine_lr"
+  # init_lr: 1e-4
+  # min_lr: 8e-5c
+  init_lr: 1e-4
+  min_lr: 8e-5
+  warmup_lr: 1e-5
+  mode: 'v2' # stage1: v1, 
+
+  weight_decay: 1e-3 #0.05
+  max_epoch: 200
+  iters_per_epoch: 100 #100 #50 #200
+  batch_size_train: 8 #48
+  batch_size_eval: 64 #48
+  num_workers: 4
+  warmup_steps: 200 #200
+
+  seed: 42
+  # output_dir: "output"
+  output_dir: /home/sist/zyang/LLM/minigpt4recLog
+  # output_dir: "home/zyang/LLM/minigpt4recLog/minigpt4rec_finetune"
+
+  amp: True
+  resume_ckpt_path: null
+
+  evaluate: True #False
+  train_splits: ["train"]
+  valid_splits: ["valid"]
+  test_splits: ["test","valid"]
+
+  device: "cuda"
+  world_size: 1
+  dist_url: "env://"
+  distributed: True
