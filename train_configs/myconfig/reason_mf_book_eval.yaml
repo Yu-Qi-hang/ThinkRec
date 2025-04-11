@@ -4,7 +4,7 @@ model:
   infer_type: "native" # quest, cake
   quest_config:
     # enable: False
-    page_size: 16
+    page_size: 32
     max_seq_len: 1024
     token_budget: 32
   cake_config:
@@ -28,7 +28,7 @@ model:
   freeze_lora: True
   generate_config:
     enable: True
-    max_len: 32
+    max_len: 16
   prompt_path: "prompts/reflection_amazon.txt"
   # prompt_path: "prompts/collm_amazon_.txt"
 
@@ -56,8 +56,8 @@ model:
     pretrained_path: /data/yuqihang/result/CoLLM/checkpoints/mf/0228_booknew_best_model_d256_lr0.001_wd1e-06.pth
     
 
-  
-  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250401022/checkpoint_bestauc.pth
+  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250410161/auc_uauc
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250401022/checkpoint_bestauc.pth
   # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250401022/checkpoint_bestuauc.pth
   # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250401022/checkpoint_bestauc_uauc.pth
 

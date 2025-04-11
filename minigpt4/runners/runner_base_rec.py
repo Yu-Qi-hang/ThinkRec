@@ -14,6 +14,7 @@ from pathlib import Path
 
 import torch
 import torch.distributed as dist
+from omegaconf import OmegaConf
 import webdataset as wds
 from minigpt4.common.dist_utils import (
     download_cached_file,
@@ -33,6 +34,7 @@ from minigpt4.datasets.datasets.dataloader_utils import (
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 from minigpt4.runners.runner_base import RunnerBase
+from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, set_peft_model_state_dict
 
 @registry.register_runner("rec_runner_base")
 class RecRunnerBase(RunnerBase):
@@ -107,3 +109,60 @@ class RecRunnerBase(RunnerBase):
         )
         results = self.task.evaluation(model=model, data_loaders=data_loader)
         return results
+
+
+    @main_process
+    def _save_checkpoint(self, cur_epoch, is_best=False, tag=""):
+        """
+        Save the checkpoint at the current epoch.
+        """
+        model_no_ddp = self.unwrap_dist_model(self.model)
+        param_grad_dic = {
+            k: v.requires_grad for (k, v) in model_no_ddp.named_parameters()
+        }
+        state_dict = model_no_ddp.state_dict()
+
+        for k in list(state_dict.keys()):
+            if k in param_grad_dic.keys() and not param_grad_dic[k]:
+                # delete parameters that do not require gradient
+                del state_dict[k]
+        save_obj = {
+            "model": state_dict,
+            "optimizer": self.optimizer.state_dict(),
+            "config": self.config.to_dict(),
+            "scaler": self.scaler.state_dict() if self.scaler else None,
+            "epoch": cur_epoch,
+        }
+        save_to = os.path.join(
+            self.output_dir,
+            "checkpoint_{}{}.pth".format("best" if is_best else cur_epoch, tag),
+        )
+        logging.info("Saving checkpoint at epoch {} to {}.".format(cur_epoch, save_to))
+        torch.save(save_obj, save_to)
+        for k in list(state_dict.keys()):
+            if 'lora_' in k or 'base_model' in k:
+                del state_dict[k]
+        if len(list(state_dict.keys())) > 0:
+            torch.save(state_dict, os.path.join(self.output_dir, f"project_model_{tag}.pth"))
+        else:
+            # 保存 LoRA 适配器参数
+            os.makedirs(os.path.join(self.output_dir, f"adapter_{tag}"),exist_ok=True)
+            lora_state_dict = get_peft_model_state_dict(model_no_ddp.llama_model_lora)
+            torch.save(lora_state_dict, os.path.join(self.output_dir, f"adapter_{tag}", f"adapter_model.bin"))
+            lora_config_file = os.path.join(self.output_dir, f"adapter_{tag}", f"adapter_config.json")
+            if not os.path.exists(lora_config_file):
+                lora_config = model_no_ddp.llama_model_lora.peft_config['default'] # 获取LoRA配置信息
+                adapter_config = {
+                    'peft_type': "LORA",
+                    'r': int(lora_config.r),
+                    'lora_alpha': int(lora_config.lora_alpha),
+                    'target_modules': list(lora_config.target_modules),
+                    'lora_dropout': float(lora_config.lora_dropout),
+                    'bias': str(lora_config.bias),
+                    'task_type': str(lora_config.task_type),
+                    'base_model_name_or_path': str(lora_config.base_model_name_or_path)
+                }
+                with open(os.path.join(self.output_dir, f"adapter_{tag}", f"adapter_config.json"),'w') as f:
+                    json.dump(adapter_config,f,indent=4)
+            # print(model_no_ddp.llama_model_lora.peft_config,type(model_no_ddp.llama_model_lora.peft_config))
+            # model_no_ddp.llama_model_lora.save_pretrained(os.path.join(self.output_dir, f"adapter_{tag}"))

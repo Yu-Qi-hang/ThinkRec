@@ -43,7 +43,8 @@ model:
     
 
   
-  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250405141/checkpoint_bestauc_uauc.pth
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250409024/checkpoint_bestauc.pth
+  ckpt: ['/data/yuqihang/result/CoLLM/reproduce/20250410164/adapter_auc_uauc','/data/yuqihang/result/CoLLM/reproduce/20250411040/adapter_auc_uauc']
 
   
 
@@ -86,7 +87,7 @@ run:
   resume_ckpt_path: null
 
   evaluate: False # False True
-  train_splits: ["reason", "train"]
+  train_splits: ["reason","train"]
   train_ratios: [0.2,0.8]
   valid_splits: ["valid"]
   test_splits: ["test"]

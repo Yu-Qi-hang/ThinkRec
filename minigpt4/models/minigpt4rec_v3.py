@@ -207,7 +207,7 @@ class MiniGPT4Rec_v3(Rec2Base):
                 lora_dropout=lora_config.dropout,
                 bias="none",
                 task_type="CAUSAL_LM"
-            ) 
+            )
             self.llama_model_lora = get_peft_model(self.llama_model, peft_config)
             print("Setting Lora Done")
         
@@ -224,7 +224,7 @@ class MiniGPT4Rec_v3(Rec2Base):
             print("Setting Quest Done")
         
         if self.rec_encoder is not None and 'prompt' not in rec_model:
-            print("type:", type(proj_mid), proj_mid)
+            print("proj_mid:", type(proj_mid), proj_mid)
             self.llama_proj = nn.Sequential(
                 nn.Linear(self.rec_encoder.config.embedding_size, self.rec_encoder.config.embedding_size*int(proj_mid)),  # ml100=>5
                 nn.ReLU(),
@@ -267,6 +267,8 @@ class MiniGPT4Rec_v3(Rec2Base):
             self.prompt_list = []
             self.prompt_list_p = None
         self.reason =  False
+        self.eval_only = False
+        self.user2group = None
         self.wrong_data = 0
         self.wrong_dir = '/home/yuqihang/projects/CoLLM/collm-datasets/bookdu/reflection/wrong.txt'
         self.loss_alpha = 1.0
@@ -286,9 +288,16 @@ class MiniGPT4Rec_v3(Rec2Base):
         if generate_config is not None and generate_config.enable:
             self.eval_only = True
             self.generate_length = generate_config.max_len
-            self.generete_file = ckpt_path.replace('.pth','.txt')
-        else:
-            self.eval_only = False
+            self.generete_file = ckpt_path.replace('.pth','')+'.txt'
+
+    def set_user2group(self, user2group):
+        print(user2group)
+        if os.path.exists(user2group):
+            self.user2group = pd.read_csv(user2group)
+            self.user2group.columns = ['user_id','group_id']
+            self.user2group['user_id'] = self.user2group['user_id'].astype(int)
+            self.user2group['group_id'] = self.user2group['group_id'].astype(int)
+            print('set user2group done!!!')
 
     def to_be_trained(self):
         if self.use_lora:
@@ -380,6 +389,14 @@ class MiniGPT4Rec_v3(Rec2Base):
         inputs_embeds = torch.cat([sample_embeds, to_regress_embeds], dim=1)
         attention_mask = torch.cat([sample_atts, to_regress_tokens.attention_mask], dim=1)
 
+        if self.user2group is not None:
+            current_adapter = self.llama_model_lora.active_adapter #group0,group1
+            group_id = f"group{self.user2group[self.user2group['user_id']==samples['UserID'].cpu().tolist()[0]]['group_id'].item()}"
+            # print(current_adapter,group_id)
+            if group_id != current_adapter:
+                # print(f'switch to {group_id}')
+                self.llama_model_lora.set_adapter(group_id)
+            
         print(f'{inputs_embeds.shape[1]}',file=open('ftoken_lens.txt','a'))
         with self.maybe_autocast():
             outputs = self.llama_model_lora(
@@ -441,12 +458,22 @@ class MiniGPT4Rec_v3(Rec2Base):
             QAtargets = torch.cat([empty_targets, targets], dim=1)
             print(f'{inputs_embeds.shape[1]}',file=open('gtoken_lens.txt','a'))
 
+        if self.user2group is not None:
+            current_adapter = self.llama_model_lora.active_adapter #group0,group1
+            group_id = f"group{self.user2group[self.user2group['user_id']==samples['UserID'].cpu().tolist()[0]]['group_id'].item()}"
+            # print(current_adapter,group_id)
+            if group_id != current_adapter:
+                print(f'switch to {group_id}')
+                self.llama_model_lora.set_adapter(group_id)
+
         with self.maybe_autocast():
             if self.eval_only:
                 outputs = self.llama_model_lora.generate(
                     inputs_embeds=sample_embeds,
                     attention_mask=sample_atts,
                     temperature=0.4,
+                    no_repeat_ngram_size = 2,
+                    repetition_penalty=1.2,
                     # do_sample=False,
                     max_length=self.generate_length + sample_embeds.shape[-2],
                     pad_token_id=self.llama_tokenizer.pad_token_id,
@@ -474,8 +501,8 @@ class MiniGPT4Rec_v3(Rec2Base):
         neg_ans_id = self.llama_tokenizer(ans_[int(0)], add_special_tokens=False).input_ids[0]
         if self.eval_only:
             logits = torch.stack(outputs.logits, dim=1)
-            print(samples['label'].cpu().item(),file=open(self.generete_file,'a'))
-            print('\n'.join([ana.replace('\n',' ') for ana in self.llama_tokenizer.batch_decode(**outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)]),file=open(self.generete_file,'a'))
+            print(samples['label'].cpu().tolist(),file=open(self.generete_file,'a'))
+            print('\n'.join(['. '.join(ana.replace('\n',' ').split('. ')[:-1]) for ana in self.llama_tokenizer.batch_decode(**outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)]),file=open(self.generete_file,'a'))
             # print('\n'.join([ana.replace('\n',' ') for ana in self.llama_tokenizer.batch_decode(**outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)]),file=open(self.generete_file,'a'))
             logits_ = logits[:,0,:][:,pos_ans_id]
         else:
@@ -1361,18 +1388,42 @@ class MiniGPT4Rec_v3(Rec2Base):
         )
 
         generate_config = cfg.get("generate_config", None)
-        ckpt_path = cfg.get("ckpt", "")  # load weights of MiniGPT-4
-        if ckpt_path:
+        ckpt_path = cfg.get("ckpt", None)  # load weights of MiniGPT-4
+        user2group = cfg.get('user2group',None)
+        if isinstance(ckpt_path,str):
             print("Load MiniGPT4Rec Checkpoint: {}".format(ckpt_path))
-            ckpt = torch.load(ckpt_path, map_location="cpu")
-            # msg = model.load_state_dict(ckpt['model'], strict=False)
-            msg = model.load_state_dict(ckpt['model'], strict=False)
-            # print("loading message, msg.... ", msg)
+            #是文件吗
+            model.set_generate_config(generate_config,ckpt_path)
+            if os.path.isfile(ckpt_path):
+                ckpt = torch.load(ckpt_path, map_location="cpu")
+                # msg = model.load_state_dict(ckpt['model'], strict=False)
+                msg = model.load_state_dict(ckpt['model'], strict=False)
+                # print("loading message, msg.... ", msg)
+            else: #eval
+                tag = ckpt_path.split('/')[-1]
+                ckpt_path = '/'.join(ckpt_path.split('/')[:-1])
+                # models_name = os.listdir(ckpt_path)
+                model.load_state_dict(torch.load(os.path.join(ckpt_path,f"project_model_{tag}.pth"), map_location="cpu"), strict=False)
+                adapters = os.listdir(os.path.join(ckpt_path,"lora_adapter"))
+                for adapter in adapters:
+                    model.llama_model_lora.load_adapter(os.path.join(ckpt_path,"lora_adapter",adapter), adapter_name=adapter)
+                model.llama_model_lora.set_adapter("group0")
+                if len(adapters)>1:
+                    model.set_user2group(user2group)
+                print("loading adapters and proj")
+        elif ckpt_path is not None:#stage2,一个也可以
+            print('loading adapters')
+            for idx,adapter in enumerate(ckpt_path):
+                model.llama_model_lora.load_adapter(adapter, adapter_name=f"group{idx}")
+            model.llama_model_lora.set_adapter("group0")
+            if len(ckpt_path)>1:
+                model.set_user2group(user2group)
+
             # reload the rec model, avoiding it be covered by the loaded ckpt
             if os.path.exists(rec_config['pretrained_path']) and freeze_rec:
                 model.rec_encoder.load_state_dict(torch.load(rec_config['pretrained_path'], map_location="cpu"))
         ans_type = cfg.get('ans_type')
+        
         model.set_answer_type(mode=ans_type)
-        model.set_generate_config(generate_config,ckpt_path)
         model.print_prompt()
         return model

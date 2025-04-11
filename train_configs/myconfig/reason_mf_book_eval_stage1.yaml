@@ -57,7 +57,7 @@ model:
     
 
   
-  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250405141/checkpoint_bestauc_uauc.pth
+  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250408033/checkpoint_bestauc_uauc.pthtar -xzvf /data/yuqihang/datasets/collm.tar.gz -C /data/yuqihang/datasets/tar -xzvf /data/yuqihang/datasets/collm.tar.gz -C /data/yuqihang/datasets/
 
 
 

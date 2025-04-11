@@ -253,22 +253,24 @@ if __name__=='__main__':
     parser.add_argument("--save_path", type=str, default="/data/yuqihang/result/CoLLM/checkpoints/mf/")
     parser.add_argument("--istrain", action='store_true')
     args = parser.parse_args()
-    # lr_ = [1e-1,1e-2,1e-3]
-    lr_=[1e-3] #1e-2
-    wd_ = [1e-6]
+    lr_ = [1e-2,1e-3]
+    # lr_=[1e-3] #1e-2
+    wd_ = [1e-3,1e-4,1e-5,1e-6,1e-7]
     # embedding_size_ = [32, 64, 128, 156, 512]
     embedding_size_ = [256]
     istrain = args.istrain
     data_dir = args.data_dir
     save_path = args.save_path
+    os.makedirs(save_path, exist_ok=True)
     print(f"data_dir:{data_dir}, save_path:{save_path}, istrain:{istrain}")
 
-    f=None
+    logfile = f"{data_dir.strip('/').split('/')[-1].replace('-','')}_best_model.txt"
+    f=open(os.path.join(save_path,logfile),'a')
+
     for lr in lr_:
         for wd in wd_:
             for embedding_size in embedding_size_:
                 model_name = f"{datetime.datetime.now().strftime('%m%d')}_{data_dir.strip('/').split('/')[-1].replace('-','')}_best_model_d{embedding_size}_lr{lr}_wd{wd}.pth"
-                save_path = os.path.join(save_path, model_name)
                 train_config={
                     'lr': lr,
                     'wd': wd,
@@ -279,6 +281,6 @@ if __name__=='__main__':
                     "batch_size":1024
                 }
                 print(train_config)
-                run_a_trail(train_config=train_config, data_dir=data_dir, log_file=f, save_mode=istrain, save_file=save_path, need_train=istrain)
+                run_a_trail(train_config=train_config, data_dir=data_dir, log_file=f, save_mode=istrain, save_file=os.path.join(save_path, model_name), need_train=istrain)
     if f is not None:
         f.close()

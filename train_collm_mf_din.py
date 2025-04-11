@@ -1,8 +1,9 @@
-import argparse
 import os
 # import os
+os.environ['TOKENIZERS_PARALLELISM'] = 'False'
 # os.environ['CURL_CA_BUNDLE'] = ''
 # os.environ["CUDA_VISIBLE_DEVICES"]="4"
+import argparse
 import random
 
 import numpy as np
@@ -107,6 +108,7 @@ def main():
     user_num = max(train_.uid.max(),valid_.uid.max(),test_.uid.max())+1
     item_num = max(train_.iid.max(),valid_.iid.max(),test_.iid.max())+1
 
+    cfg.model_cfg.user2group = os.path.join(data_dir,'user_group.csv')
     cfg.model_cfg.rec_config.user_num = int(user_num) #int(datasets[data_name]['train'].user_num)  #cfg.model_cfg.get("user_num",)
     cfg.model_cfg.rec_config.item_num = int(item_num) #int(datasets[data_name]['train'].item_num) #cfg.model_cfg.get("item_num", datasets[data_name]['train'].item_num)
     cfg.pretty_print()

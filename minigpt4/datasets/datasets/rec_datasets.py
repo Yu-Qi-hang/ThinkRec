@@ -328,13 +328,24 @@ class AmazonOOData(RecBaseDataset):
         self.annotation = pd.read_pickle(ann_paths[0]+"_ood2.pkl").reset_index(drop=True)
         self.id2title = self.filter_dict(json.load(open('/'.join(ann_paths[0].split('/')[:-1])+'/id2title.json', 'r')))
         self.id2title[0] = {'title':'','keywords':''}
-        self.title2id = self.filter_dict(json.load(open('/'.join(ann_paths[0].split('/')[:-1])+'/title2id.json', 'r')))
+        # self.title2id = self.filter_dict(json.load(open('/'.join(ann_paths[0].split('/')[:-1])+'/title2id.json', 'r')))
         self.use_his = False
         self.use_label = False
         self.use_reason = False
         self.use_ids = use_ids
         self.use_desc = use_desc
         self.prompt_flag = False
+        self.user2group = None
+        user2group = f"{'/'.join(ann_paths[0].split('/')[:-1])}/user_group.csv"
+        # print(user2group,os.path.exists(user2group))
+        if os.path.exists(user2group) and ('valid' in ann_paths[0] or 'test' in ann_paths[0]):
+            self.user2group = pd.read_csv(user2group)
+            self.user2group.columns = ['user_id','group_id']
+            self.user2group['user_id'] = self.user2group['user_id'].astype(int)
+            self.user2group['group_id'] = self.user2group['group_id'].astype(int)
+            print('load splits by group')
+        else:
+            print('no need to split by group')
 
         # ## warm test:
         
@@ -387,7 +398,13 @@ class AmazonOOData(RecBaseDataset):
         self.items = list(set(self.annotation['TargetItemID']))
         self.cans_num = cans_num
         self.text_processor = text_processor
-        
+        if self.user2group is not None:
+            # print(type(self.annotation['UserID'][0]),type(self.user2group['user_id'][0]))
+            merged_df = pd.merge(self.annotation, self.user2group, left_on='UserID', right_on='user_id', how='left')
+            sorted_df = merged_df.sort_values(by='group_id')
+            self.annotation = sorted_df.drop(columns=['user_id', 'group_id']).reset_index(drop=True)
+            print('dataset reordered by group')
+
         if self.use_his:
             # 从self.annotation["InteractedItemIDs"]统计id热度
             # id_counter = Counter()
@@ -514,8 +531,8 @@ class AmazonOOData(RecBaseDataset):
     def get_id2title(self):
         return self.id2title
 
-    def get_title2id(self):
-        return self.title2id
+    # def get_title2id(self):
+    #     return self.title2id
 
     def filter_dict(self,raw_dict):
         filtered_dict = {}

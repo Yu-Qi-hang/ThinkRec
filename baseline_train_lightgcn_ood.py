@@ -9,10 +9,11 @@ from sklearn.metrics import roc_auc_score
 import torch.nn as nn
 import torch.nn.functional as F
 import omegaconf
+import argparse
 import random 
+import datetime
 import time
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"]="7"
 
 def uAUC_me(user, predict, label):
     if not isinstance(predict,np.ndarray):
@@ -133,8 +134,8 @@ class early_stoper(object):
             return False
 
 # set random seed   
-def run_a_trail(train_config,log_file=None, save_mode=False,save_file=None,need_train=True,warm_or_cold=None):
-    seed=2023
+def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False, save_file=None, need_train=True, warm_or_cold=None):
+    seed=2025
     random.seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():
@@ -149,33 +150,21 @@ def run_a_trail(train_config,log_file=None, save_mode=False,save_file=None,need_
     args.hyper_para_info()
 
     # load dataset
-    # data_dir = "/home/zyang/LLM/MiniGPT-4/dataset/ml-100k/"
-    # data_dir = "/home/sist/zyang/LLM/datasets/ml-100k/"
-    data_dir = "/data/zyang/datasets/ml-1m/"
-    train_data = pd.read_pickle(data_dir+"train_ood2.pkl")[['uid','iid','label']].values
-    valid_data = pd.read_pickle(data_dir+"valid_ood2.pkl")[['uid','iid','label']].values
-    test_data = pd.read_pickle(data_dir+"test_ood2.pkl")[['uid','iid','label']].values
+    train_data = pd.read_pickle(os.path.join(data_dir,"train_ood2.pkl"))[['uid','iid', 'label']].values
+    valid_data = pd.read_pickle(os.path.join(data_dir,"valid_ood2.pkl"))[['uid','iid', 'label']].values
+    test_data = pd.read_pickle(os.path.join(data_dir,"test_ood2.pkl"))[['uid','iid', 'label']].values
 
     if warm_or_cold is not None:
         if warm_or_cold == 'warm':
-            test_data = pd.read_pickle(data_dir+"test_ood2.pkl")[['uid','iid','label', 'not_cold']]
+            # test_data = pd.read_pickle(data_dir+"test_ood2.pkl")[['uid','iid','label', 'not_cold']]
             test_data = test_data[test_data['not_cold'].isin([1])][['uid','iid','label']].values
             print("warm data size:", test_data.shape[0])
             # pass
         else:
-            test_data = pd.read_pickle(data_dir+"test_ood2.pkl")[['uid','iid','label', 'not_cold']]
+            # test_data = pd.read_pickle(data_dir+"test_ood2.pkl")[['uid','iid','label', 'not_cold']]
             test_data = test_data[test_data['not_cold'].isin([0])][['uid','iid','label']].values
             print("cold data size:", test_data.shape[0])
             # pass
-
-    # train_config={
-    #     "lr": 1e-2,
-    #     "wd": 1e-4,
-    #     "epoch": 5000,
-    #     "eval_epoch":1,
-    #     "patience":50,
-    #     "batch_size":1024
-    # }
 
     user_num = train_data[:,0].max() + 1
     item_num = train_data[:,1].max() + 1
@@ -185,8 +174,8 @@ def run_a_trail(train_config,log_file=None, save_mode=False,save_file=None,need_
         "item_num": int(item_num),
         "embedding_size": int(train_config['embedding_size']),
         "embed_size": int(train_config['embedding_size']),
-        "data_path": '/home/zyang/code-2022/RecUnlearn/data/',
-        "dataset": 'ml-1m', #'yahoo-s622-01' #'yahoo-small2' #'yahooR3-iid-001'
+        # "data_path": '/home/zyang/code-2022/RecUnlearn/data/',
+        "dataset": data_dir.strip('/').split('/')[-1],
         "layer_size": '[64,64]',
 
         # lightgcn hyper-parameters
@@ -207,11 +196,6 @@ def run_a_trail(train_config,log_file=None, save_mode=False,save_file=None,need_
     valid_data_loader = DataLoader(valid_data, batch_size = train_config['batch_size'], shuffle=False)
     test_data_loader = DataLoader(test_data, batch_size = train_config['batch_size'], shuffle=False)
 
-
-
-
-
-    # model = MatrixFactorization(mf_config).cuda()
     model = LightGCN(lgcn_config).cuda()
     model._set_graph(gnndata.Graph)
     
@@ -308,91 +292,30 @@ def run_a_trail(train_config,log_file=None, save_mode=False,save_file=None,need_
     if log_file is not None:
         print("train_config:", train_config, "best result:", early_stop.best_metric, file=log_file)
 
-
-
-# if __name__=='__main__':
-#     # lr_ = [1e-1,1e-2,1e-3]
-#     lr_=[1e-4]
-#     dw_ = [1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 0]
-#     # embedding_size_ = [32, 64, 128, 156, 512]
-#     embedding_size_ = [64, 128, 256]
-#     gcn_layers = [1, 2, 3]
-#     try:
-#         # f = open("ml100k-rec_lgcn_search_lr"+str(lr_[0])+".log",'rw+')
-#         # f = open("ood-ml100k-rec_lgcn_search_lrall-int0.1_p100_1layer"+str(lr_[0])+".log",'rw+')
-#         f = open("0919-oodv2-ml1m-rec_lgcn_search_lrall-int0.1_p100_1layer"+str(lr_[0])+".log",'rw+')
-#     except:
-#         # f = open("ml100k-rec_lgcn_search_lr"+str(lr_[0])+".log",'w+')
-#         f = open("0919-oodv2-ml1m-rec_lgcn_search_lrall-int0.1_p100_1layer"+str(lr_[0])+".log",'w+')
-#     for lr in lr_:
-#         for wd in dw_:
-#             for embedding_size in embedding_size_:
-#                 for gcn_layer in gcn_layers:
-#                     train_config={
-#                         'lr': lr,
-#                         'wd': wd,
-#                         'embedding_size': embedding_size,
-#                         "epoch": 5000,
-#                         "eval_epoch":1,
-#                         "patience":100,
-#                         "batch_size":2048,
-#                         "gcn_layer": gcn_layer
-#                     }
-#                     print(train_config)
-#                     run_a_trail(train_config=train_config, log_file=f, save_mode=False)
-#     f.close()
-
-
-
-#train_config: {'lr': 0.01, 'wd': 0.0001, 'embedding_size': 64, 'epoch': 5000, 'eval_epoch': 1, 'patience': 100, 'batch_size': 2048, 'gcn_layer': 2}
-
-# {'lr': 0.0001, 'wd': 1e-07, 'embedding_size': 256, 'epoch': 5000, 'eval_epoch': 1, 
-# 'patience': 100, 'batch_size': 2048, 'gcn_layer': 2}
-# save version....
-# if __name__=='__main__':
-#     # lr_ = [1e-1,1e-2,1e-3]
-#     lr_=[1e-4] #1e-2
-#     dw_ = [1e-5]
-#     # embedding_size_ = [32, 64, 128, 156, 512]
-#     embedding_size_ = [64]
-#     save_path = "/data/zyang/LLM/PretrainedModels/lgcn/"
-#     # save_path = "/home/sist/zyang/LLM/PretrainedModels/mf/"
-#     # try:
-#     #     f = open("rec_mf_search_lr"+str(lr_[0])+".log",'rw+')
-#     # except:
-#     #     f = open("rec_mf_search_lr"+str(lr_[0])+".log",'w+')
-#     f=None
-#     for lr in lr_:
-#         for wd in dw_:
-#             for embedding_size in embedding_size_:
-#                 train_config={
-#                     'lr': lr,
-#                     'wd': wd,
-#                     'embedding_size': embedding_size,
-#                     "epoch": 5000,
-#                     "eval_epoch":1,
-#                     "patience":100,
-#                     "batch_size":2048,
-#                     "gcn_layer": 2
-#                 }
-#                 print(train_config)
-#                 save_path += "0918-OODv2_lgcn_ml1m_best_model_d" + str(embedding_size)+ 'lr-'+ str(lr) + "wd"+str(wd) + ".pth"
-#                 run_a_trail(train_config=train_config, log_file=f, save_mode=True,save_file=save_path)
-#     f.close()
-
-
 # # with prtrain version:
 if __name__=='__main__':
-    # lr_ = [1e-1,1e-2,1e-3]
-    lr_=[1e-2] #1e-2
-    dw_ = [1e-4]
-    # embedding_size_ = [32, 64, 128, 156, 512]
-    embedding_size_ = [64]
-    save_path = "/data/zyang/LLM/PretrainedModels/lgcn/"
-    f=None
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data_dir", type=str, default="/home/yuqihang/projects/CoLLM/collm-datasets/booknew/")
+    parser.add_argument("--save_path", type=str, default="/data/yuqihang/result/CoLLM/checkpoints/lightgcn/")
+    parser.add_argument("--istrain", action='store_true')
+    args = parser.parse_args()
+
+    lr_=[1e-2,1e-3,1e-4] #1e-2
+    wd_ = [1e-3,1e-4,1e-5]
+    embedding_size_ = [64, 128, 256]
+    istrain = args.istrain
+    data_dir = args.data_dir
+    save_path = args.save_path
+    os.makedirs(save_path, exist_ok=True)
+    print(f"data_dir:{data_dir}, save_path:{save_path}, istrain:{istrain}")
+
+    logfile = f"{data_dir.strip('/').split('/')[-1].replace('-','')}_best_model.txt"
+    f=open(os.path.join(save_path,logfile),'a')
+
     for lr in lr_:
-        for wd in dw_:
+        for wd in wd_:
             for embedding_size in embedding_size_:
+                model_name = f"{datetime.datetime.now().strftime('%m%d')}_{data_dir.strip('/').split('/')[-1].replace('-','')}_best_model_d{embedding_size}_lr{lr}_wd{wd}.pth"
                 train_config={
                     'lr': lr,
                     'wd': wd,
@@ -403,27 +326,7 @@ if __name__=='__main__':
                     "batch_size":1024,
                     "gcn_layer": 2
                 }
-                # print(train_config)
-                # if os.path.exists(save_path + "best_model_d" + str(embedding_size)+ 'lr-'+ str(lr) + "wd"+str(wd) + ".pth"):
-                #     save_path += "best_model_d" + str(embedding_size)+ 'lr-'+ str(lr) + "wd"+str(wd) + ".pth"
-                # else:
-                #     save_path += "best_model_d" + str(embedding_size) + ".pth"
-                save_path += "0918-OODv2_lgcn_ml1m_best_model_d64lr-0.01wd0.0001.pth"
-                run_a_trail(train_config=train_config, log_file=f, save_mode=True, save_file=save_path, need_train=False, warm_or_cold=None)
+                print(train_config)
+                run_a_trail(train_config=train_config, data_dir=data_dir, log_file=f, save_mode=istrain, save_file=os.path.join(save_path, model_name), need_train=istrain)
     if f is not None:
         f.close()
-        
-
-
-
-
-
-        
-            
-
-
-
-
-
-
-

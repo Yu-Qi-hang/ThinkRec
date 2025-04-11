@@ -56,7 +56,7 @@ datasets:
       cans_num: 1
       use_ids: False
       use_desc: True
-      storage: /data/yuqihang/datasets/collm-datasets/bookdu/
+      storage: /data/yuqihang/datasets/collm-datasets/bookdu/group_1/
 
 run:
   task: rec_pretrain
@@ -72,7 +72,7 @@ run:
 
   weight_decay: 1e-3 #0.05
   max_epoch: 1000
-  iters_per_epoch: 2000 #100 #50 #200
+  iters_per_epoch: 800 #100 #50 #200
   batch_size_train: 1 #48
   batch_size_eval: 2 #48
   num_workers: 2
@@ -87,7 +87,7 @@ run:
 
   evaluate: False # False True
   train_splits: ["reason","train"]
-  train_ratios: [0.1,0.9]
+  train_ratios: [0.2,0.8]
   valid_splits: ["valid"]
   test_splits: ["test"]
   # test_splits: ["test_warm", "test_cold", "test", "valid"]

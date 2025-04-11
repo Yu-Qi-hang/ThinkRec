@@ -9,12 +9,10 @@ from sklearn.metrics import roc_auc_score
 import torch.nn as nn
 import torch.nn.functional as F
 import omegaconf
+import argparse
 import random 
-
-
+import datetime
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"]="2"
-# os.environ['CUDA_VISIBLE_DEVICES']='2'
 import time
 
 
@@ -67,38 +65,6 @@ def uAUC_me(user, predict, label):
     uauc = auc_for_user.mean()
     print("uauc for validation Cost:", time.time()-start_time,'uauc:', uauc)
     return uauc, computed_u, auc_for_user
-
-# class model_hyparameters(object):
-#     def __init__(self):
-#         super().__init__()
-#         self.lr = 1e-3
-#         self.regs = 0
-#         self.embed_size = 64
-#         self.batch_size = 2048
-#         self.epoch = 5000
-#         self.data_path = '/home/yuqihang/projects/CoLLM/collm-datasets/'
-#         self.dataset = 'ml-1m' 
-#         # self.dataset = 'book2018'
-#         self.layer_size='[64,64]'
-#         self.verbose = 1
-#         self.Ks='[10]'
-#         self.data_type='retraining'
-
-#         # lightgcn hyper-parameters
-#         self.gcn_layers = 1
-#         self.keep_prob = 1
-#         self.A_n_fold = 100
-#         self.A_split = False
-#         self.dropout = False
-#         self.pretrain=0
-#         self.init_emb=1e-4
-        
-#     def reset(self, config):
-#         for name,val in config.items():
-#             setattr(self,name,val)
-    
-#     def hyper_para_info(self):
-#         print(self.__dict__)
 
 
 class seq_dataset_train(Dataset):
@@ -166,13 +132,6 @@ class seq_dataset_train(Dataset):
             yield torch.tensor(sequnces_all), torch.tensor(targets_all),torch.tensor(target_posi_all),torch.tensor(labels_all)
 
 
-                    
-
-
-
-
-
-
 
 class seq_dataset_eval(Dataset):
     def __init__(self,data,max_len=50):
@@ -193,16 +152,6 @@ class seq_dataset_eval(Dataset):
         else:
             his = np.array(his) 
         return  uid, iid, his, labels       
-
-
-        # 'iput_seqs','targets','target_posi' 
-        # data_i = self.data[index]
-        # uid,iid,his,labels = data_i[0], data_i[1], data_i[2], data_i[3]
-        # if len(his) < self.max_len:
-        #     his = np.zeros(self.max_len)
-        # return  uid, iid, his, labels   
-
-
 
 
 class seq_dataset(Dataset):
@@ -262,7 +211,7 @@ class early_stoper(object):
 
 # set random seed   
 def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False,save_file=None,need_train=True,warm_or_cold=None):
-    seed=2023
+    seed=2025
     random.seed(seed)
     np.random.seed(seed)
     if torch.cuda.is_available():
@@ -271,27 +220,6 @@ def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False,save_f
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-
-    # args = model_hyparameters()
-    # args.reset(train_config)
-    # args.hyper_para_info()
-
-    # load dataset
-    # data_dir = "/home/zyang/LLM/MiniGPT-4/dataset/ml-100k/"
-    # data_dir = "/home/sist/zyang/LLM/datasets/ml-100k/"
-    # train_data = pd.read_pickle(data_dir+"train.pkl")[['uid','iid',"sessionItems",'label']].values
-    # valid_data = pd.read_pickle(data_dir+"valid.pkl")[['uid','iid',"sessionItems",'label']].values
-    # test_data = pd.read_pickle(data_dir+"test.pkl")[['uid','iid',"sessionItems",'label']].values
-
-    # train_config={
-    #     "lr": 1e-2,
-    #     "wd": 1e-4,
-    #     "epoch": 5000,
-    #     "eval_epoch":1,
-    #     "patience":50,
-    #     "batch_size":1024
-    # }
-
 
     train_data = pd.read_pickle(os.path.join(data_dir,"train_ood2.pkl"))[['uid','iid', 'his', 'label']].values
     valid_data = pd.read_pickle(os.path.join(data_dir,"valid_ood2.pkl"))[['uid','iid', 'his', 'label']].values
@@ -302,12 +230,12 @@ def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False,save_f
 
     if warm_or_cold is not None:
         if warm_or_cold == 'warm':
-            test_data = pd.read_pickle(os.path.join(data_dir,"test_warm_cold_ood2.pkl"))[['uid','iid', 'his', 'label', 'not_cold']]
+            # test_data = pd.read_pickle(os.path.join(data_dir,"test_warm_cold_ood2.pkl"))[['uid','iid', 'his', 'label', 'not_cold']]
             test_data = test_data[test_data['not_cold'].isin([1])][['uid','iid','his', 'label']].values
             print("warm data size:", test_data.shape[0])
             # pass
         else:
-            test_data = pd.read_pickle(os.path.join(data_dir,"test_warm_cold_ood2.pkl"))[['uid','iid','his','label', 'not_cold']]
+            # test_data = pd.read_pickle(os.path.join(data_dir,"test_warm_cold_ood2.pkl"))[['uid','iid','his','label', 'not_cold']]
             test_data = test_data[test_data['not_cold'].isin([0])][['uid','iid','his','label']].values
             print("cold data size:", test_data.shape[0])
             # pass
@@ -437,22 +365,28 @@ def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False,save_f
 
 # with prtrain version:
 if __name__=='__main__':
-    # lr_ = [1e-1,1e-2,1e-3]
-    lr_=[1e-2] #1e-2
-    wd_ = [1e-4]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data_dir", type=str, default="/home/yuqihang/projects/CoLLM/collm-datasets/booknew")
+    parser.add_argument("--save_path", type=str, default="/data/yuqihang/result/CoLLM/checkpoints/sasrec/")
+    parser.add_argument("--istrain", action='store_true')
+    args = parser.parse_args()
+    lr_=[1e-2,1e-3,1e-4] #1e-2
+    wd_ = [1e-3,1e-4,1e-5]
     # embedding_size_ = [32, 64, 128, 156, 512]
     embedding_size_ = [64]
     maxlen = 25
-    istrain = True
-    data_dir = "/data/yuqihang/datasets/collm-datasets/ml-1m/"
-    save_dir = "/data/yuqihang/result/CoLLM/checkpoints/sasrec/"
-    
-    f=None
+    istrain = args.istrain
+    data_dir = args.data_dir
+    save_path = args.save_path
+    os.makedirs(save_path, exist_ok=True)
+    print(f"data_dir:{data_dir}, save_path:{save_path}, istrain:{istrain}")
+
+    logfile = f"{data_dir.strip('/').split('/')[-1].replace('-','')}_best_model.txt"
+    f=open(os.path.join(save_path,logfile),'a')
     for lr in lr_:
         for wd in wd_:
             for embedding_size in embedding_size_:
                 model_name = f"{datetime.datetime.now().strftime('%m%d')}_{data_dir.strip('/').split('/')[-1].replace('-','')}_best_model_d{embedding_size}_lr{lr}_wd{wd}_len{maxlen}.pth"
-                save_path = os.path.join(save_dir, model_name)
                 train_config={
                     'lr': lr,
                     'wd': wd,
@@ -464,6 +398,6 @@ if __name__=='__main__':
                     "maxlen": maxlen
                 }
                 print(train_config)
-                run_a_trail(train_config=train_config, data_dir=data_dir, log_file=f, save_mode=True,save_file=save_path,need_train=True)
+                run_a_trail(train_config=train_config, data_dir=data_dir, log_file=f, save_mode=istrain, save_file=os.path.join(save_path, model_name), need_train=istrain)
     if f is not None:
         f.close()

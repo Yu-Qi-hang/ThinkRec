@@ -1,11 +1,14 @@
 model:
   arch: mini_gpt4rec_v3
   model_type: pretrain_vicuna
-  quest_config: {enable: false, page_size: 16, max_seq_len: 1024, token_budget: 32}
+  infer_type: native
+  quest_config: {page_size: 32, max_seq_len: 1024, token_budget: 32}
+  cake_config: {compress: true, cascading: true, cache_size: 1024, window_size: 32,
+    tau1: 1.6, tau2: 0.4, gamma: 200.0}
   freeze_rec: true
   freeze_proj: true
   freeze_lora: true
-  generate_config: {enable: true, max_len: 32}
+  generate_config: {enable: true, max_len: 16}
   prompt_path: prompts/reflection_amazon.txt
   max_txt_len: 2048
   proj_token_num: 1
@@ -25,7 +28,7 @@ model:
     target_modules: [q_proj, v_proj]
     dropout: 0.05
   rec_config: {user_num: -100, item_num: -100, embedding_size: 256, pretrained_path: /data/yuqihang/result/CoLLM/checkpoints/mf/0228_booknew_best_model_d256_lr0.001_wd1e-06.pth}
-  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250404123/checkpoint_best.pth
+  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250409024/checkpoint_best.pth
 datasets:
   amazon_ood:
     path: /data/yuqihang/datasets/collm-datasets/bookdu/
