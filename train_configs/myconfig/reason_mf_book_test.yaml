@@ -28,8 +28,9 @@ model:
   freeze_lora: True
   generate_config:
     enable: True
-    max_len: 2048
-  prompt_path: "prompts/reflection_amazon.txt"
+    max_len: 512
+  # prompt_path: "prompts/reflection_amazon.txt"
+  prompt_path: "prompts/tallrec_amazon_.txt"
   # prompt_path: "prompts/collm_amazon_.txt"
 
   max_txt_len: 2048
@@ -57,7 +58,12 @@ model:
     
 
   
-  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250402130/checkpoint_bestauc_uauc.pth
+  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250406154/auc_uauc
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/add_text/20250314040/checkpoint_best.pth #+label+keywords
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/add_text/20250311162/checkpoint_best.pth #tallrec
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/add_text/20250318125/checkpoint_best.pth #collm
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250406154/checkpoint_bestauc_uauc.pth
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250402130/checkpoint_bestauc_uauc.pth
 
 
 
@@ -68,8 +74,8 @@ datasets:
     build_info:
       seq_len: 10
       cans_num: 1
-      use_ids: True
-      use_desc: True
+      use_ids: False
+      use_desc: False
       storage: /data/yuqihang/datasets/collm-datasets/bookdu/
 
 run:
@@ -88,7 +94,7 @@ run:
   max_epoch: 1000
   iters_per_epoch: 800 #100 #50 #200
   batch_size_train: 1 #48
-  batch_size_eval: 1 #48
+  batch_size_eval: 2 #48
   num_workers: 2
   warmup_steps: 200 #200
 
@@ -100,6 +106,7 @@ run:
   resume_ckpt_path: null
 
   evaluate: True # False True
+  eval_text: True
   train_splits: ["train"]
   valid_splits: ["valid"]
   test_splits: ["test_tiny"]

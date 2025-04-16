@@ -359,6 +359,15 @@ class RunnerBase:
         """
         return self.config.run_cfg.evaluate
 
+
+    @property
+    def eval_text(self):
+        """
+        Set to True to eval reason text.
+        """
+        return self.config.run_cfg.get("eval_text", False)
+    
+
     @property
     def use_dist_eval_sampler(self):
         return self.config.run_cfg.get("use_dist_eval_sampler", True)
@@ -465,6 +474,7 @@ class RunnerBase:
                                 val_log.update({"best_epoch_auc": best_epoch_auc})
                                 val_log.update({"best_epoch_both": best_epoch_both})
                                 val_log.update({"best_epoch_uauc": best_epoch_uauc})
+                                val_log.update({"uauc": uauc})
                                 self.log_stats(val_log, split_name)
                                 not_change += 1
                                 # if not_change > 20: # early stop

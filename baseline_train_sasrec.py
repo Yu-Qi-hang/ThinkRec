@@ -273,23 +273,23 @@ def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False,save_f
     if not need_train:
         model.load_state_dict(torch.load(save_file))
         model.eval()
-        pre=[]
-        label = []
-        users = []
-        for batch_id,batch_data in enumerate(valid_data_loader):
-            batch_data = [x_.cuda() for x_ in batch_data]
-            ui_matching = model.forward_eval(batch_data[0].long(),batch_data[1].long(),batch_data[2].long())
-            pre.extend(ui_matching.detach().cpu().numpy())
-            label.extend(batch_data[-1].cpu().numpy())
-            users.extend(batch_data[0].cpu().numpy())
-        valid_auc = roc_auc_score(label,pre)
-        valid_uauc, _, _ = uAUC_me(users,pre,label)
-        label = np.array(label)
-        pre = np.array(pre)
-        thre = 0.1
-        pre[pre>=thre] =  1
-        pre[pre<thre]  =0
-        val_acc = (label==pre).mean()
+        # pre=[]
+        # label = []
+        # users = []
+        # for batch_id,batch_data in enumerate(valid_data_loader):
+        #     batch_data = [x_.cuda() for x_ in batch_data]
+        #     ui_matching = model.forward_eval(batch_data[0].long(),batch_data[1].long(),batch_data[2].long())
+        #     pre.extend(ui_matching.detach().cpu().numpy())
+        #     label.extend(batch_data[-1].cpu().numpy())
+        #     users.extend(batch_data[0].cpu().numpy())
+        # valid_auc = roc_auc_score(label,pre)
+        # valid_uauc, _, _ = uAUC_me(users,pre,label)
+        # label = np.array(label)
+        # pre = np.array(pre)
+        # thre = 0.1
+        # pre[pre>=thre] =  1
+        # pre[pre<thre]  =0
+        # val_acc = (label==pre).mean()
 
         pre=[]
         label = []
@@ -302,7 +302,14 @@ def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False,save_f
             users.extend(batch_data[0].cpu().numpy())
         test_auc = roc_auc_score(label,pre)
         test_uauc, _, _ = uAUC_me(users,pre,label)
-        print("valid_auc:{}, valid_uauc:{}, test_auc:{}, test_uauc: {} acc: {}".format(valid_auc, valid_uauc, test_auc, test_uauc, val_acc))
+        label = np.array(label)
+        pre = np.array(pre)
+        thre = 0.1
+        pre[pre>=thre] =  1
+        pre[pre<thre]  =0
+        test_acc = (label==pre).mean()
+        print("test_auc:{}, test_uauc: {} acc: {}".format(test_auc, test_uauc, test_acc))
+        # print("valid_auc:{}, valid_uauc:{}, test_auc:{}, test_uauc: {} acc: {}".format(valid_auc, valid_uauc, test_auc, test_uauc, val_acc))
         return 
     
 

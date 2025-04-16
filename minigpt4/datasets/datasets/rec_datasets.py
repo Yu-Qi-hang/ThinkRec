@@ -338,7 +338,8 @@ class AmazonOOData(RecBaseDataset):
         self.user2group = None
         user2group = f"{'/'.join(ann_paths[0].split('/')[:-1])}/user_group.csv"
         # print(user2group,os.path.exists(user2group))
-        if os.path.exists(user2group) and ('valid' in ann_paths[0] or 'test' in ann_paths[0]):
+        # if os.path.exists(user2group) and ('valid' in ann_paths[0] or 'test' in ann_paths[0]):
+        if os.path.exists(user2group) and 'test' in ann_paths[0]:
             self.user2group = pd.read_csv(user2group)
             self.user2group.columns = ['user_id','group_id']
             self.user2group['user_id'] = self.user2group['user_id'].astype(int)

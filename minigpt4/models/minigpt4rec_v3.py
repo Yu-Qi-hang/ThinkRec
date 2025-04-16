@@ -1,3 +1,4 @@
+from calendar import c
 import logging
 import random
 import time
@@ -213,7 +214,17 @@ class MiniGPT4Rec_v3(Rec2Base):
         
         if freeze_lora:
             print("freeze lora...")
+            try:
+                flexible_layer_num = freeze_lora.layers
+                flexible_layers = range(32-flexible_layer_num,32)
+            except:
+                flexible_layers = None
             for name, param in self.llama_model_lora.named_parameters():
+                if flexible_layers and 'layers' in name and 'lora_' in name:
+                    layer_id = int(re.search(r'\.layers\.([^.]+)', name).group(1))
+                    if layer_id in flexible_layers:
+                        param.requires_grad = True
+                        continue
                 param.requires_grad = False
 
         if self.use_quest:
@@ -288,6 +299,8 @@ class MiniGPT4Rec_v3(Rec2Base):
         if generate_config is not None and generate_config.enable:
             self.eval_only = True
             self.generate_length = generate_config.max_len
+            if not isinstance(ckpt_path,str):
+                ckpt_path = ckpt_path[0]
             self.generete_file = ckpt_path.replace('.pth','')+'.txt'
 
     def set_user2group(self, user2group):
@@ -419,6 +432,7 @@ class MiniGPT4Rec_v3(Rec2Base):
         return {"loss": loss}
 
     def generate_for_samples_v3(self, samples, return_all=False):
+        ret = {}
         # sample = samples["image"]
         user_selective_prompts = False
         if hasattr(samples, 'question_split'):  # VQA dataset
@@ -436,7 +450,7 @@ class MiniGPT4Rec_v3(Rec2Base):
         device = samples['UserID'].device #samples_encode['User_emb'].device
 
         ans_ = {1:self.pos_ans[0], 0:self.neg_ans[0]}
-
+        start_time = time.time()
         if not self.eval_only:
             text = [ans_[int(t)]  for t in samples["label"]]
             to_regress_tokens = self.llama_tokenizer(
@@ -476,6 +490,7 @@ class MiniGPT4Rec_v3(Rec2Base):
                     repetition_penalty=1.2,
                     # do_sample=False,
                     max_length=self.generate_length + sample_embeds.shape[-2],
+                    early_stopping=False, # 禁用提前停止
                     pad_token_id=self.llama_tokenizer.pad_token_id,
                     return_dict_in_generate=True,
                     use_cache=True,
@@ -497,21 +512,27 @@ class MiniGPT4Rec_v3(Rec2Base):
                     use_cache=False,
                     labels=QAtargets,
                 )
+        end_time = time.time()
+        ret['cost'] = end_time - start_time
         pos_ans_id = self.llama_tokenizer(ans_[int(1)], add_special_tokens=False).input_ids[0]
         neg_ans_id = self.llama_tokenizer(ans_[int(0)], add_special_tokens=False).input_ids[0]
         if self.eval_only:
-            logits = torch.stack(outputs.logits, dim=1)
+            # ret['outputs'] = outputs
+            reason_text = self.llama_tokenizer.batch_decode(**outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+            ret['reason_text'] = reason_text
+            #存储生成的文本
             print(samples['label'].cpu().tolist(),file=open(self.generete_file,'a'))
-            print('\n'.join(['. '.join(ana.replace('\n',' ').split('. ')[:-1]) for ana in self.llama_tokenizer.batch_decode(**outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)]),file=open(self.generete_file,'a'))
+            print('\n'.join(['. '.join(ana.replace('\n',' ').split('. ')[:-1]) for ana in reason_text]),file=open(self.generete_file,'a'))
             # print('\n'.join([ana.replace('\n',' ') for ana in self.llama_tokenizer.batch_decode(**outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)]),file=open(self.generete_file,'a'))
-            logits_ = logits[:,0,:][:,pos_ans_id]
+            logits_ = torch.stack(outputs.logits, dim=1)[:,0,:][:,pos_ans_id]
         else:
             logits_ = outputs.logits[:,-t_posi,:][:,pos_ans_id]
         # logits_ = logits[:,0,:][:,pos_ans_id]-logits[:,0,:][:,neg_ans_id]
         loss = nn.functional.binary_cross_entropy_with_logits(logits_, samples['label'].float())
         # self.save_wrong_data(samples, logits_)
-
-        return {"loss": loss, 'logits':logits_}
+        ret["loss"] = loss
+        ret["logits"] = logits_
+        return ret
 
     def save_wrong_data(self, samples, logits ):
         logits[logits>0.5] = 1
@@ -1390,15 +1411,15 @@ class MiniGPT4Rec_v3(Rec2Base):
         generate_config = cfg.get("generate_config", None)
         ckpt_path = cfg.get("ckpt", None)  # load weights of MiniGPT-4
         user2group = cfg.get('user2group',None)
+        model.set_generate_config(generate_config,ckpt_path)
         if isinstance(ckpt_path,str):
             print("Load MiniGPT4Rec Checkpoint: {}".format(ckpt_path))
             #是文件吗
-            model.set_generate_config(generate_config,ckpt_path)
             if os.path.isfile(ckpt_path):
                 ckpt = torch.load(ckpt_path, map_location="cpu")
                 # msg = model.load_state_dict(ckpt['model'], strict=False)
                 msg = model.load_state_dict(ckpt['model'], strict=False)
-                # print("loading message, msg.... ", msg)
+                print("loading message, msg.... ", msg)
             else: #eval
                 tag = ckpt_path.split('/')[-1]
                 ckpt_path = '/'.join(ckpt_path.split('/')[:-1])
@@ -1419,9 +1440,9 @@ class MiniGPT4Rec_v3(Rec2Base):
             if len(ckpt_path)>1:
                 model.set_user2group(user2group)
 
-            # reload the rec model, avoiding it be covered by the loaded ckpt
-            if os.path.exists(rec_config['pretrained_path']) and freeze_rec:
-                model.rec_encoder.load_state_dict(torch.load(rec_config['pretrained_path'], map_location="cpu"))
+        # reload the rec model, avoiding it be covered by the loaded ckpt
+        if os.path.exists(rec_config['pretrained_path']) and freeze_rec:
+            model.rec_encoder.load_state_dict(torch.load(rec_config['pretrained_path'], map_location="cpu"))
         ans_type = cfg.get('ans_type')
         
         model.set_answer_type(mode=ans_type)

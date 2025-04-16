@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 from sklearn.neighbors import NearestNeighbors
 from sklearn.manifold import TSNE
 from tqdm import tqdm
+import warnings
+import argparse
 
 class Rec_config:
     def __init__(self, user_num, item_num, embedding_size):
@@ -61,8 +63,6 @@ def hierarchical_clustering(data, n_clusters=5):
     labels = clustering.fit_predict(data)
     return labels
 
-
-
 # 使用k-距离曲线确定最佳eps（常用方法）
 def find_optimal_eps(data, k=5):
     neigh = NearestNeighbors(n_neighbors=k)
@@ -76,9 +76,6 @@ def find_optimal_eps(data, k=5):
     plt.savefig('k_distance_curve.png')
     return np.percentile(k_distances, 95)  # 通常取曲线拐点附近的值
 
-
-
-
 # 方法3: DBSCAN聚类 (适用于密度不均匀的数据)
 def dbscan_clustering(data, dim=256):
     optimal_eps = 23000#find_optimal_eps(data, k=dim+1)  # k通常取embedding维度+1
@@ -89,9 +86,8 @@ def dbscan_clustering(data, dim=256):
     print(f"噪声点数量: {np.sum(labels == -1)}")
     return labels
 
-
 # 可视化 (使用t-SNE降维到2D)
-def visualize_clusters(embeddings, labels):
+def visualize_clusters(embeddings, labels, save_fig):
     tsne = TSNE(n_components=2, random_state=42)
     embeddings_2d = tsne.fit_transform(embeddings)
     plt.figure(figsize=(10, 8))
@@ -100,82 +96,91 @@ def visualize_clusters(embeddings, labels):
     plt.title('t-SNE Visualization of User Clusters')
     plt.xlabel('t-SNE 1')
     plt.ylabel('t-SNE 2')
-    plt.savefig('user_clusters.png')
+    plt.savefig(save_fig)
 
 
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_dir', type=str, default="/home/yuqihang/projects/CoLLM/collm-datasets/bookdu")
+    parser.add_argument('--n_clusters', type=int, default=2)
+    parser.add_argument('--pretrained_rec', type=str, default="/data/yuqihang/result/CoLLM/checkpoints/mf/0228_booknew_best_model_d256_lr0.001_wd1e-06.pth")
+    args = parser.parse_args()
+    data_dir = args.data_dir
+    n_clusters = args.n_clusters
+    rec_model = "MF"
+    pretrained_rec = args.pretrained_rec
 
-data_dir = "/home/yuqihang/projects/CoLLM/collm-datasets/bookdu"
-train_ = pd.read_pickle(os.path.join(data_dir,"train_ood2.pkl"))
-valid_ = pd.read_pickle(os.path.join(data_dir,"valid_ood2.pkl"))
-test_ = pd.read_pickle(os.path.join(data_dir,"test_ood2.pkl"))
-user_num = max(train_.uid.max(),valid_.uid.max(),test_.uid.max())+1
-item_num = max(train_.iid.max(),valid_.iid.max(),test_.iid.max())+1
+    train_ = pd.read_pickle(os.path.join(data_dir,"train_ood2.pkl"))
+    valid_ = pd.read_pickle(os.path.join(data_dir,"valid_ood2.pkl"))
+    test_ = pd.read_pickle(os.path.join(data_dir,"test_ood2.pkl"))
+    reason_ = pd.read_pickle(os.path.join(data_dir,"reason_ood2.pkl"))
+    user_num = max(train_.uid.max(),valid_.uid.max(),test_.uid.max())+1
+    item_num = max(train_.iid.max(),valid_.iid.max(),test_.iid.max())+1
 
-print('Loading Rec_model')
-rec_model = "MF"
-rec_config = Rec_config(user_num=int(user_num), item_num=int(item_num), embedding_size=256)
-rec_encoder = init_rec_encoder(rec_model, rec_config)
+    print('Loading Rec_model')
+    rec_config = Rec_config(user_num=int(user_num), item_num=int(item_num), embedding_size=256)
+    rec_encoder = init_rec_encoder(rec_model, rec_config)
+    rec_encoder.load_state_dict(torch.load(pretrained_rec, map_location="cpu"))
+    print("successfully load the pretrained model......")
 
-pretrained_rec = "/data/yuqihang/result/CoLLM/checkpoints/mf/0228_booknew_best_model_d256_lr0.001_wd1e-06.pth"
-rec_encoder.load_state_dict(torch.load(pretrained_rec, map_location="cpu"))
-print("successfully load the pretrained model......")
-for name, param in rec_encoder.named_parameters():
-    param.requires_grad = False
-rec_encoder = rec_encoder.eval()
-# rec_encoder.train = disabled_train
-print("freeze rec encoder")
-print('Loading Rec_model Done')
+    for name, param in rec_encoder.named_parameters():
+        param.requires_grad = False
+    rec_encoder = rec_encoder.eval()
+    print("freeze rec encoder")
 
-users = list(train_.uid)
-users.extend(list(test_.uid))
-users.extend(list(valid_.uid))
-users = list(set(users))
+    users = list(train_.uid)
+    users.extend(list(test_.uid))
+    users.extend(list(valid_.uid))
+    users = list(set(users))
 
-user_embeds = rec_encoder.user_encoder(torch.tensor(users)).detach().numpy()
+    user_embeds = rec_encoder.user_encoder(torch.tensor(users)).detach().numpy()
 
-# 数据标准化 (对基于距离的聚类方法很重要)
-scaler = StandardScaler()
-embeddings_scaled = scaler.fit_transform(user_embeds)
-# 执行聚类 (这里以K-Means为例)
-cluster_labels = kmeans_clustering(embeddings_scaled, max_clusters=5)
-# cluster_labels = dbscan_clustering(embeddings_scaled, dim=256)
-# cluster_labels = hierarchical_clustering(embeddings_scaled, n_clusters=8)
-# 将结果保存到DataFrame
-cluster = {}
-results = pd.DataFrame({
-    'user_id': users,
-    'cluster': cluster_labels
-})
-for user, cluster_label in zip(users,cluster_labels):
-    if int(cluster_label) not in cluster:
-        cluster[int(cluster_label)] = [user]
-    else:
-        cluster[int(cluster_label)].append(user)
-visualize_clusters(embeddings_scaled, cluster_labels)
-# 查看聚类结果
-print("聚类结果统计:")
-print(results['cluster'].value_counts())
-# 保存结果到CSV
-for cluster_label,users in cluster.items():
-    cluster[cluster_label] = list(set(sorted(users)))
-results.to_csv(os.path.join(data_dir,'user_group.csv'), index=False)
-with open(os.path.join(data_dir,'user_group.json'),'w')as f:
-    json.dump(cluster,f,indent=4)
-
-# for idx in cluster:
-#     data_group_dir_idx = os.path.join(data_dir,f'group_{idx}')
-#     os.makedirs(data_group_dir_idx,exist_ok=True)
-#     train_idx = train_[train_['uid'].isin(data_group_dict[idx])]
-#     valid_idx = valid_[valid_['uid'].isin(data_group_dict[idx])]
-#     # valid_small_idx = valid_small[valid_small['uid'].isin(data_group_dict[idx])]
-#     valid_small_idx = valid_idx.sample(frac=0.5,random_state=2025)
-#     test_idx = test_[test_['uid'].isin(data_group_dict[idx])]
-#     reason_idx = reason_[reason_['uid'].isin(data_group_dict[idx])]
-#     train_idx.to_pickle(os.path.join(data_group_dir_idx,"train_ood2.pkl"))
-#     valid_idx.to_pickle(os.path.join(data_group_dir_idx,"valid_ood2.pkl"))
-#     valid_small_idx.to_pickle(os.path.join(data_group_dir_idx,"valid_small_ood2.pkl"))
-#     test_idx.to_pickle(os.path.join(data_group_dir_idx,"test_ood2.pkl"))
-#     reason_idx.to_pickle(os.path.join(data_group_dir_idx,"reason_ood2.pkl"))
+    print('grouped user embedding')
+    # 数据标准化 (对基于距离的聚类方法很重要)
+    scaler = StandardScaler()
+    embeddings_scaled = scaler.fit_transform(user_embeds)
+    # 执行聚类 (这里以K-Means为例)
+    # cluster_labels = kmeans_clustering(embeddings_scaled, max_clusters=5)
+    # cluster_labels = dbscan_clustering(embeddings_scaled, dim=256)
+    cluster_labels = hierarchical_clustering(embeddings_scaled, n_clusters=n_clusters)
+    # 将结果保存到DataFrame
+    cluster = {}
+    results = pd.DataFrame({
+        'user_id': users,
+        'cluster': cluster_labels
+    })
+    for user, cluster_label in zip(users,cluster_labels):
+        if int(cluster_label) not in cluster:
+            cluster[int(cluster_label)] = [user]
+        else:
+            cluster[int(cluster_label)].append(user)
+    save_fig = os.path.join(data_dir,f'user_group{n_clusters}.png')
+    visualize_clusters(embeddings_scaled, cluster_labels, save_fig)
+    # 查看聚类结果
+    print("聚类结果统计:")
+    print(results['cluster'].value_counts())
+    # 保存结果到CSV
+    for cluster_label,users in cluster.items():
+        cluster[cluster_label] = list(set(sorted(users)))
+    results.to_csv(os.path.join(data_dir,f'user_group{n_clusters}.csv'), index=False)
+    with open(os.path.join(data_dir,f'user_group{n_clusters}.json'),'w')as f:
+        json.dump(cluster,f,indent=4)
+    print(f'split data into {data_dir}/grouped_{n_clusters}')
+    for idx in cluster:
+        data_group_dir_idx = os.path.join(data_dir,f'grouped_{n_clusters}',f'group_{idx}')
+        os.makedirs(data_group_dir_idx,exist_ok=True)
+        train_idx = train_[train_['uid'].isin(cluster[idx])]
+        valid_idx = valid_[valid_['uid'].isin(cluster[idx])]
+        # valid_small_idx = valid_small[valid_small['uid'].isin(data_group_dict[idx])]
+        valid_small_idx = valid_idx.sample(frac=0.5,random_state=2025)
+        # test_idx = test_[test_['uid'].isin(cluster[idx])]
+        reason_idx = reason_[reason_['uid'].isin(cluster[idx])]
+        print(f'{idx} data size:{len(train_idx)},{len(valid_idx)},{len(valid_small_idx)},{len(reason_idx)}')
+        train_idx.to_pickle(os.path.join(data_group_dir_idx,"train_ood2.pkl"))
+        valid_idx.to_pickle(os.path.join(data_group_dir_idx,"valid_ood2.pkl"))
+        valid_small_idx.to_pickle(os.path.join(data_group_dir_idx,"valid_small_ood2.pkl"))
+        # test_idx.to_pickle(os.path.join(data_group_dir_idx,"test_ood2.pkl"))
+        reason_idx.to_pickle(os.path.join(data_group_dir_idx,"reason_ood2.pkl"))
 
 

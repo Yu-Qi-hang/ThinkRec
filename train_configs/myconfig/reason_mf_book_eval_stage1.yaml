@@ -28,7 +28,7 @@ model:
   freeze_lora: True
   generate_config:
     enable: True
-    max_len: 1024
+    max_len: 32
   # prompt_path: "prompts/reflection_amazon.txt"
   prompt_path: "prompts/tallrec_amazon_.txt"
 
@@ -57,7 +57,7 @@ model:
     
 
   
-  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250408033/checkpoint_bestauc_uauc.pthtar -xzvf /data/yuqihang/datasets/collm.tar.gz -C /data/yuqihang/datasets/tar -xzvf /data/yuqihang/datasets/collm.tar.gz -C /data/yuqihang/datasets/
+  ckpt: ["/data/yuqihang/result/CoLLM/reproduce/20250411040/adapter_auc_uauc"]
 
 
 

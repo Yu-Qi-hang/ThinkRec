@@ -28,8 +28,9 @@ model:
   freeze_lora: True
   generate_config:
     enable: True
-    max_len: 16
+    max_len: 32
   prompt_path: "prompts/reflection_amazon.txt"
+  # prompt_path: "prompts/tallrec_amazon_.txt"
   # prompt_path: "prompts/collm_amazon_.txt"
 
   max_txt_len: 2048
@@ -55,11 +56,11 @@ model:
     embedding_size: 256
     pretrained_path: /data/yuqihang/result/CoLLM/checkpoints/mf/0228_booknew_best_model_d256_lr0.001_wd1e-06.pth
     
-
-  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250410161/auc_uauc
-  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250401022/checkpoint_bestauc.pth
-  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250401022/checkpoint_bestuauc.pth
-  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250401022/checkpoint_bestauc_uauc.pth
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250406154/checkpoint_bestauc_uauc.pth
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250406154/auc_uauc # tune
+  ckpt: /data/yuqihang/result/CoLLM/reproduce/add_text/20250314040/checkpoint_best.pth #+label+keywords
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/add_text/20250318125/checkpoint_best.pth #collm
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/add_text/20250311162/checkpoint_best.pth #tallrec
 
 
 
@@ -90,7 +91,7 @@ run:
   max_epoch: 1000
   iters_per_epoch: 800 #100 #50 #200
   batch_size_train: 1 #48
-  batch_size_eval: 8 #48
+  batch_size_eval: 4 #48
   num_workers: 2
   warmup_steps: 200 #200
 
@@ -102,6 +103,7 @@ run:
   resume_ckpt_path: null
 
   evaluate: True # False True
+  eval_text: False
   train_splits: ["train"]
   valid_splits: ["valid"]
   test_splits: ["test_small"]

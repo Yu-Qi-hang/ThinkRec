@@ -120,6 +120,9 @@ class MetricLogger(object):
     def add_meter(self, name, meter):
         self.meters[name] = meter
 
+    def del_meter(self, name):
+        self.meters.pop(name)
+
     def log_every(self, iterable, print_freq, header=None):
         i = 0
         if not header:

@@ -43,7 +43,7 @@ model:
     
 
   
-  # ckpt: /data/yuqihang/result/CoLLM/reproduce/add_text/20250312140/checkpoint_best.pth
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250405141/checkpoint_bestauc_uauc.pth
 
   
 
@@ -56,7 +56,7 @@ datasets:
       cans_num: 1
       use_ids: False
       use_desc: True
-      storage: /data/yuqihang/datasets/collm-datasets/bookdu/group_1/
+      storage: /data/yuqihang/datasets/collm-datasets/bookdu/
 
 run:
   task: rec_pretrain

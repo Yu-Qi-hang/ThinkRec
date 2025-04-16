@@ -44,7 +44,7 @@ model:
 
   
   # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250409024/checkpoint_bestauc.pth
-  ckpt: ['/data/yuqihang/result/CoLLM/reproduce/20250410164/adapter_auc_uauc','/data/yuqihang/result/CoLLM/reproduce/20250411040/adapter_auc_uauc']
+  ckpt: ['/data/yuqihang/result/CoLLM/reproduce/20250411040/adapter_auc_uauc']
 
   
 

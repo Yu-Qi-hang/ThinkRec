@@ -6,10 +6,13 @@
 """
 
 import logging
+from math import e
 import os
-
+import re
+from sympy import Determinant, det, im
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.distributed as dist
 from minigpt4.common.dist_utils import get_rank, get_world_size, is_main_process, is_dist_avail_and_initialized
 from minigpt4.common.logger import MetricLogger, SmoothedValue, MetricLogger_auc, SmoothedValue_v2
@@ -17,43 +20,75 @@ from minigpt4.common.registry import registry
 from minigpt4.datasets.data_utils import prepare_sample
 from transformers import GenerationConfig
 from sklearn.metrics import roc_auc_score,accuracy_score
+from collections import defaultdict
 from minigpt4.tasks.base_task import BaseTask
 import time
 import numpy as np
+import math
+import evaluate
+# def calculate_hr1(eval_content):
+#     correct_num=0
+#     valid_num=0
+#     total_num=0
+#     start_time = time.time()
+#     for i,generate in enumerate(eval_content["generate"]):
+#         real=eval_content["real"][i]
+#         cans=eval_content["cans"][i]
+#         total_num+=1
+#         generate=generate.strip().lower().strip()
+#         real=real.strip().lower().strip()
+#         cans=[item.strip().lower().strip() for item in cans]
+#         gen_cans_list=[]
+#         for cans_item in cans:
+#             if cans_item in generate:
+#                 gen_cans_list.append(cans_item)
+#         if len(gen_cans_list)>0:
+#             valid_num+=1
+#             if real in gen_cans_list:
+#                 correct_num+=1
+#     valid_ratio=valid_num/total_num
+#     if valid_num>0:
+#         hr1=correct_num/valid_num
+#     else:
+#         hr1=0
+#     print(f'Calculate HR1 cost: {time.time()-start_time}s...')
+#     return valid_ratio,hr1
 
-def calculate_hr1(eval_content):
-    correct_num=0
-    valid_num=0
-    total_num=0
-    start_time = time.time()
-    for i,generate in enumerate(eval_content["generate"]):
-        real=eval_content["real"][i]
-        cans=eval_content["cans"][i]
-        total_num+=1
-        generate=generate.strip().lower().strip()
-        real=real.strip().lower().strip()
-        cans=[item.strip().lower().strip() for item in cans]
-        gen_cans_list=[]
-        for cans_item in cans:
-            if cans_item in generate:
-                gen_cans_list.append(cans_item)
-        if len(gen_cans_list)>0:
-            valid_num+=1
-            if real in gen_cans_list:
-                correct_num+=1
-    valid_ratio=valid_num/total_num
-    if valid_num>0:
-        hr1=correct_num/valid_num
+def calculate_ttr(text):
+    tokens = text.split()
+    if len(tokens) == 0:
+        return 0
+    unique_tokens = set(tokens)
+    return len(unique_tokens) / len(tokens), len(tokens)
+
+def calculate_ngram_entropy(text, n=1, smooth=True):
+    tokens = re.findall(r'\b\w+\b', text.lower())  # 过滤特殊符号
+    if len(tokens) < n:
+        return 0
+    ngrams = [tuple(tokens[i:i+n]) for i in range(len(tokens)-n+1)]
+    
+    # 频次统计（添加平滑）
+    counts = defaultdict(int)
+    for gram in ngrams:
+        counts[gram] += 1
+    if smooth:
+        vocab_size = len(set(tokens))  # 使用词汇表大小作为平滑因子
+        total = len(ngrams) + vocab_size
     else:
-        hr1=0
-    print(f'Calculate HR1 cost: {time.time()-start_time}s...')
-    return valid_ratio,hr1
+        total = len(ngrams)
+    
+    # 熵计算
+    entropy = 0.0
+    for gram, count in counts.items():
+        p = (count + 1)/total if smooth else count/total
+        p = max(p, 1e-10)  # 设置最小值
+        entropy -= p * math.log(p)
+    return entropy / math.log(2)  # 返回bits为单位的熵值
 
 
-def uAUC_me(user, predict, label):
+def reorganize_by_user(user, predict, label):
     predict = predict.squeeze()
     label = label.squeeze()
-    start_time = time.time()
     u, inverse, counts = np.unique(user,return_inverse=True,return_counts=True) # sort in increasing
     index = np.argsort(inverse)
     candidates_dict = {}
@@ -61,7 +96,6 @@ def uAUC_me(user, predict, label):
     k = 0
     total_num = 0
     only_one_interaction = 0
-    computed_u = []
     for u_i in u:
         start_id,end_id = total_num, total_num+counts[k]
         u_i_counts = counts[k]
@@ -74,9 +108,11 @@ def uAUC_me(user, predict, label):
             continue
         candidates_dict[u_i] = [predict[index_ui], label[index_ui]]
         total_num += counts[k]
-        
         k+=1
     print("only one interaction users:",only_one_interaction)
+    return candidates_dict
+def uAUC_me(candidates_dict):
+    computed_u = []
     auc=[]
     only_one_class = 0
 
@@ -88,13 +124,87 @@ def uAUC_me(user, predict, label):
             computed_u.append(ui)
         except:
             only_one_class += 1
-            # print("only one class")
         
     auc_for_user = np.array(auc)
     print("computed user:", auc_for_user.shape[0], "can not users:", only_one_class)
     uauc = auc_for_user.mean()
-    print("uauc for validation Cost:", time.time()-start_time,'uauc:', uauc)
     return uauc, computed_u, auc_for_user
+
+def hr_at_k(candidates_dict, k):
+    """
+    计算 HR@K（Hit Rate at K）
+    :param candidates_dict: {uid: (pred_scores, labels)}
+    :param k: Top-K 推荐
+    :return: 所有用户的平均 HR@K
+    """
+    hr_list = []
+    for uid,pre_and_true in candidates_dict.items():
+        pred,label = pre_and_true
+        if len(pred) == 0:
+            continue  # 跳过无候选物品的用户
+        # 按预测分数降序排序，取 Top-K
+        top_k_indices = np.argsort(-np.array(pred))[:k]
+        # 检查 Top-K 中是否有至少一个正样本
+        hit = np.any(np.array(label)[top_k_indices] == 1)
+        hr_list.append(hit)
+    return np.mean(hr_list) if hr_list else 0.0
+
+def ndcg_at_k(candidates_dict, k):
+    """
+    计算 NDCG@K（Normalized Discounted Cumulative Gain at K）
+    :param candidates_dict: {uid: (pred_scores, labels)}
+    :param k: Top-K 推荐
+    :return: 所有用户的平均 NDCG@K
+    """
+    ndcg_list = []
+    for uid,pre_and_true in candidates_dict.items():
+        pred,label = pre_and_true
+        if len(pred) == 0:
+            continue
+        # 按预测分数降序排序
+        ranked_labels = np.array(label)[np.argsort(-np.array(pred))]
+        # 计算 DCG@K
+        dcg = 0.0
+        for i in range(min(k, len(ranked_labels))):
+            rel = ranked_labels[i]
+            dcg += rel / np.log2(i + 2)  # log2(i+2) 因为索引从 0 开始
+        # 计算 IDCG@K（理想排序的 DCG）
+        ideal_labels = np.sort(np.array(label))[::-1]  # 降序排列
+        idcg = 0.0
+        for i in range(min(k, len(ideal_labels))):
+            rel = ideal_labels[i]
+            idcg += rel / np.log2(i + 2)
+        # 避免除以 0
+        ndcg = (dcg / idcg) if idcg > 0 else 0.0
+        ndcg_list.append(ndcg)
+    return np.mean(ndcg_list) if ndcg_list else 0.0
+
+def map_at_k(candidates_dict, k):
+    """
+    计算 MAP@K（Mean Average Precision at K）
+    :param candidates_dict: {uid: (pred_scores, labels)}
+    :param k: Top-K 推荐
+    :return: 所有用户的平均 MAP@K
+    """
+    ap_list = []
+    for uid,pre_and_true in candidates_dict.items():
+        pred,label = pre_and_true
+        if len(pred) == 0:
+            continue
+        # 按预测分数降序排序
+        ranked_labels = np.array(label)[np.argsort(-np.array(pred))]
+        # 计算 Precision@K 的累积和
+        hits = 0
+        sum_precision = 0.0
+        for i in range(min(k, len(ranked_labels))):
+            if ranked_labels[i] == 1:
+                hits += 1
+                precision_at_i = hits / (i + 1)
+                sum_precision += precision_at_i
+        # 计算 Average Precision (AP)
+        ap = sum_precision / np.sum(label) if np.sum(label) > 0 else 0.0
+        ap_list.append(ap)
+    return np.mean(ap_list) if ap_list else 0.0
 
 # Function to gather tensors across processes
 def gather_tensor(tensor, dst=0):
@@ -249,7 +359,8 @@ class RecBaseTask(BaseTask):
     #         #     auc_logger.update(auc=auc)
     #         auc = 0
     #         auc = roc_auc_score(labels_.cpu().numpy(), results_logits_.cpu().numpy())
-    #         uauc = uAUC_me(users_.cpu().numpy(), results_logits_.cpu().numpy(), labels_.cpu().numpy())
+            # user_dict = reorganize_by_user(users_.cpu().numpy(), results_logits_.cpu().numpy(), labels_.cpu().numpy())
+            # uauc = uAUC_me(user_dict)
             
             
     #         metric_logger.synchronize_between_processes()
@@ -328,19 +439,28 @@ class RecBaseTask(BaseTask):
     #     return results
 
 
-    def evaluation(self, model, data_loaders, cuda_enabled=True):
+    def evaluation(self, model, data_loaders, cuda_enabled=True, eval_text=False):
         model = model.eval()
         metric_logger = MetricLogger(delimiter="  ")
-        auc_logger = MetricLogger(delimiter="  ")
+        # auc_logger = MetricLogger(delimiter="  ")
         metric_logger.add_meter("loss", SmoothedValue(window_size=1, fmt="{value:.4f}"))
         metric_logger.add_meter("acc", SmoothedValue(window_size=1, fmt="{value:.4f}"))
-        auc_logger.add_meter("auc", SmoothedValue(window_size=1, fmt="{value:.4f}"))
+        metric_logger.add_meter("PPL", SmoothedValue(window_size=1, fmt="{value:.4f}"))
+        metric_logger.add_meter("TTR", SmoothedValue(window_size=1, fmt="{value:.4f}"))
+        metric_logger.add_meter("length", SmoothedValue(window_size=1, fmt="{value:.4f}"))
+        metric_logger.add_meter("ngram2", SmoothedValue(window_size=1, fmt="{value:.4f}"))
+        metric_logger.add_meter("ngram3", SmoothedValue(window_size=1, fmt="{value:.4f}"))
+        metric_logger.add_meter("ngram4", SmoothedValue(window_size=1, fmt="{value:.4f}"))
+        valid_ratio = {"TTR":0,"ngram2":0,"ngram3":0,"ngram4":0}
+        deterministic = False
+        total_valid = 0
         header = "Evaluation"
         # TODO make it configurable
         print_freq = len(data_loaders.loaders[0])//5 #10
 
         results = []
         results_loss = []
+        perplexity = None
         
         k = 0
         use_auc = False
@@ -352,10 +472,10 @@ class RecBaseTask(BaseTask):
             for samples in metric_logger.log_every(data_loader, print_freq, header):
                 # samples = next(data_loader)
                 samples = prepare_sample(samples, cuda_enabled=cuda_enabled)
-                epoch_start = time.time()
+                # epoch_start = time.time()
                 eval_output = self.valid_step(model=model, samples=samples)
-                epoch_end = time.time()
-                eval_times.append(epoch_end-epoch_start)
+                # epoch_end = time.time()
+                eval_times.append(eval_output['cost'])
                 # results_loss.append(eval_output['loss'].item())
                 if 'logits' in eval_output.keys():
                     use_auc = True
@@ -369,8 +489,44 @@ class RecBaseTask(BaseTask):
                     metric_logger.update(acc=acc.item())
                 else:
                     metric_logger.update(acc=0)
-                # acc = accuracy_score(samples['label'].cpu().numpy().astype(int), logits.astype(int))
-                # results.extend(eval_output)
+                
+                if 'reason_text' in eval_output.keys() and eval_text:
+                    if perplexity is None:
+                        perplexity = evaluate.load("/home/yuqihang/projects/evaluate/metrics/perplexity", module_type="metric")
+                    reason_text = eval_output['reason_text']
+                    total_valid += samples['label'].shape[0]
+                    #PPL
+                    results = perplexity.compute(model_id=(model.llama_model_lora, model.llama_tokenizer),add_start_token=False,predictions=reason_text,max_length=1024)
+                    # results = perplexity.compute(model_id='gpt2',add_start_token=False,predictions=reason_text,max_length=1024)
+                    metric_logger.update(PPL=results["mean_perplexity"])
+                    #TTR, entropy_ngram
+                    for text in reason_text:
+                        ttr_score,length = calculate_ttr(text)
+                        entropy_2gram= calculate_ngram_entropy(text,2)
+                        entropy_3gram= calculate_ngram_entropy(text,3)
+                        entropy_4gram= calculate_ngram_entropy(text,4)
+                        metric_logger.update(length=length)
+                        if ttr_score != 0:
+                            valid_ratio['TTR'] += 1
+                            metric_logger.update(TTR=ttr_score)
+                        if entropy_2gram != 0:
+                            valid_ratio['ngram2'] += 1
+                            metric_logger.update(ngram2=entropy_2gram)
+                        if entropy_3gram != 0:
+                            valid_ratio['ngram3'] += 1
+                            metric_logger.update(ngram3=entropy_3gram)
+                        if entropy_4gram != 0:
+                            valid_ratio['ngram4'] += 1
+                            metric_logger.update(ngram4=entropy_4gram)
+                else:
+                    if not deterministic:
+                        metric_logger.del_meter("PPL")
+                        metric_logger.del_meter("length")
+                        metric_logger.del_meter("TTR")
+                        metric_logger.del_meter("ngram2")
+                        metric_logger.del_meter("ngram3")
+                        metric_logger.del_meter("ngram4")
+                        deterministic = True
                 metric_logger.update(loss=eval_output['loss'].item())
                 torch.cuda.empty_cache()
             results_logits_ = torch.tensor(results_logits).to(eval_output['logits'].device).contiguous()
@@ -396,13 +552,14 @@ class RecBaseTask(BaseTask):
                 users_a = torch.cat(gathered_users,dim=0).flatten().cpu().numpy()
                 print("computing....")
                 auc = roc_auc_score(labels_a, results_logits_a)
-                uauc, _, _ = uAUC_me(users_a,results_logits_a,labels_a)
+                user_dict = reorganize_by_user(users_a,results_logits_a,labels_a)
+                uauc, _, _ = uAUC_me(user_dict)
                 print("finished comput auc.....")
             else:
                 auc = roc_auc_score(labels_.cpu().numpy(), results_logits_.cpu().numpy())
-                uauc = uAUC_me(users_.cpu().numpy(), results_logits_.cpu().numpy(), labels_.cpu().numpy())
+                user_dict = reorganize_by_user(users_.cpu().numpy(), results_logits_.cpu().numpy(), labels_.cpu().numpy())
+                uauc = uAUC_me(user_dict)
             
-
             if is_dist_avail_and_initialized():
                 dist.barrier()
                 # dist.reduce()
@@ -411,11 +568,18 @@ class RecBaseTask(BaseTask):
             # auc_logger.synchronize_between_processes()
             # auc = 0
             # # print("Label type......",type(labels),labels)
-            if use_auc:
-                auc_rank0 = auc#roc_auc_score(labels_.cpu().numpy(), results_logits_.cpu().numpy())
-            logging.info("Averaged stats: " + str(metric_logger.global_avg()) + " ***auc: " + str(auc) + " ***uauc:" +str(uauc[0]) )
-            print("rank_0 auc:", str(auc_rank0))
-            
+            # if use_auc:
+            #     auc_rank0 = auc#roc_auc_score(labels_.cpu().numpy(), results_logits_.cpu().numpy())
+            # logging.info("Averaged stats: " + str(metric_logger.global_avg()) + " ***auc: " + str(auc) + " ***uauc:" +str(uauc[0]) )
+            logging.info(f"Averaged stats: {metric_logger.global_avg()} ***auc: {auc:.4f} ***uauc:{uauc[0]:.4f}")
+            # print("rank_0 auc:", str(auc_rank0))
+            if 'reason_text' in eval_output.keys() and eval_text:#eval_only
+                for metrick,metricv in valid_ratio.items():
+                    print(f'{metrick}_valid_ratio: {metricv/total_valid}')
+
+            for topk in [1, 2, 3, 5, 10]:
+                print(f"HR@{topk}: {hr_at_k(user_dict, topk):.4f}, NDCG@{topk}: {ndcg_at_k(user_dict, topk):.4f}, MAP@{topk}: {map_at_k(user_dict, topk):.4f}")
+
             if use_auc:
                 results = {
                     'agg_metrics':auc,
@@ -427,5 +591,5 @@ class RecBaseTask(BaseTask):
                 results = {
                     'agg_metrics': -metric_logger.meters['loss'].global_avg,
                 }
-        print("eval_times:(inner 100 iters)", sum(eval_times[50:150])/100)
+        print("eval_times:(inner 80 iters)", sum(eval_times[40:120])/len(eval_times[40:120]))
         return results
