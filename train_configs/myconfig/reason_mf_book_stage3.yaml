@@ -7,7 +7,7 @@ model:
   freeze_proj: True #    
   freeze_lora:
     enable: True
-    layers: 8
+    layers: 32
   prompt_path: "prompts/tallrec_amazon_.txt"
 
   # #stage2
@@ -45,9 +45,9 @@ model:
     
 
   
-  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250405141/checkpoint_bestauc_uauc.pth #total data lora path
+  ckpt: ['/data/yuqihang/result/CoLLM/reproduce/20250405141/adapter_auc_uauc']
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250405141/checkpoint_bestauc_uauc.pth #total data lora path
 
-  
 
 datasets:
   amazon_ood:
@@ -58,7 +58,7 @@ datasets:
       cans_num: 1
       use_ids: False
       use_desc: True
-      storage: /home/yuqihang/projects/CoLLM/collm-datasets/bookdu/grouped_2/group_0/
+      storage: /home/yuqihang/projects/CoLLM/collm-datasets/bookdu/grouped_5/group_0/
 
 run:
   task: rec_pretrain

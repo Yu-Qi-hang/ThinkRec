@@ -1418,8 +1418,8 @@ class MiniGPT4Rec_v3(Rec2Base):
             if os.path.isfile(ckpt_path):
                 ckpt = torch.load(ckpt_path, map_location="cpu")
                 # msg = model.load_state_dict(ckpt['model'], strict=False)
-                msg = model.load_state_dict(ckpt['model'], strict=False)
-                print("loading message, msg.... ", msg)
+                model.load_state_dict(ckpt['model'], strict=False)
+                print("loading ckpt ")
             else: #eval
                 tag = ckpt_path.split('/')[-1]
                 ckpt_path = '/'.join(ckpt_path.split('/')[:-1])
@@ -1436,8 +1436,14 @@ class MiniGPT4Rec_v3(Rec2Base):
                 print("loading adapters and proj")
         elif ckpt_path is not None:#stage2,一个也可以
             print('loading adapters')
+            is_trainable = False
+            if isinstance(freeze_lora,bool):
+                is_trainable = not freeze_lora
+            else:
+                is_trainable = freeze_lora.get('layers',False)!=False
+            print("istrainable???????",is_trainable)
             for idx,adapter in enumerate(ckpt_path):
-                model.llama_model_lora.load_adapter(adapter, adapter_name=f"group{idx}")
+                model.llama_model_lora.load_adapter(adapter, adapter_name=f"group{idx}",is_trainable=is_trainable)
             model.llama_model_lora.set_adapter("group0")
             if len(ckpt_path)>1:
                 model.set_user2group(user2group)

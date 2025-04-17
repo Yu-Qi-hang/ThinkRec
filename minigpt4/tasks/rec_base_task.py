@@ -59,7 +59,7 @@ def calculate_ttr(text):
     if len(tokens) == 0:
         return 0
     unique_tokens = set(tokens)
-    return len(unique_tokens) / len(tokens), len(tokens)
+    return len(unique_tokens) / len(tokens), len(re.findall(r'\b\w+\b', text.lower()))
 
 def calculate_ngram_entropy(text, n=1, smooth=True):
     tokens = re.findall(r'\b\w+\b', text.lower())  # 过滤特殊符号

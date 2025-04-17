@@ -45,7 +45,7 @@ model:
     
 
   
-  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250405141/checkpoint_bestauc_uauc.pth #total data lora path
+  ckpt: ['/data/yuqihang/result/CoLLM/reproduce/20250405141/adapter_auc_uauc']
 
   
 
