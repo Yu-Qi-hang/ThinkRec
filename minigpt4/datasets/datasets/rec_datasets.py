@@ -463,7 +463,7 @@ class AmazonOOData(RecBaseDataset):
                 "InteractedItemIDs_pad": np.array(b),
                 # "InteractedItemIDs": ann['InteractedItemIDs'],
                 "InteractedItemTitles": convert_title_list_v4(samples=self.turnid2txt(ann["InteractedItemIDs"][-InteractedNum:]), labels=InteractedItemLabels, withid=self.use_ids),
-                "InteractedItemLabels_pad": np.array(InteractedItemLabels_pad),
+                # "InteractedItemLabels_pad": np.array(InteractedItemLabels_pad),
                 # "InteractedItemTitles": convert_title_list_v3(ann['InteractedItemTitles'][-InteractedNum:],ann['InteractedItemDescs'][-InteractedNum:],self.use_ids),
                 # "CandidateItemIDs": np.array(candidates['CandidateItemIDs']),
                 # "CandidateItemTitles": convert_title_list_v3(candidates['CandidateItemTitles'],candidates['CandidateItemDescs'],self.use_ids),
@@ -478,13 +478,12 @@ class AmazonOOData(RecBaseDataset):
                 "label": ann['label'],
                 # "hot": 1/(1+self.id2hot_smoothed[ann['UserID']])
             }
+            if InteractedItemLabels_pad:
+                one_sample['InteractedItemLabels_pad'] = np.array(InteractedItemLabels_pad)
             if self.use_reason:
                 one_sample['reason'] = ann['reason']
             else:
                 one_sample['reason'] = 'Yes' if ann['label'] else 'No'
-            if self.prompt_flag:
-                one_sample['prompt_flag'] = ann['prompt_flag']
-            return one_sample 
         else:
             one_sample = {
                 "UserID": ann['UserID'],
@@ -496,9 +495,9 @@ class AmazonOOData(RecBaseDataset):
                 # "InteractedNum": None,
                 "label": ann['label']
             }
-            if self.prompt_flag:
-                one_sample['prompt_flag'] = ann['prompt_flag']
-            return one_sample 
+        if self.prompt_flag:
+            one_sample['prompt_flag'] = ann['prompt_flag']
+        return one_sample 
 
     def negative_sampling(self,seq_unpad,next_item):
         canset=[i for i in self.items if i not in seq_unpad and i!=next_item]

@@ -145,24 +145,31 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
             use_ids=build_info.use_ids,
             use_desc=build_info.use_desc
         )
-        try:
-            datasets['reason'] = dataset_cls(
-            text_processor=self.text_processors["train"],
-            ann_paths=[os.path.join(storage_path, 'reason')],
-            seq_len=build_info.seq_len,
-            cans_num=build_info.cans_num,
-            use_ids=build_info.use_ids,
-            use_desc=build_info.use_desc
-            )
-            datasets['valid'] = dataset_cls(
-            text_processor=self.text_processors["train"],
-            ann_paths=[os.path.join(storage_path, 'valid_small')],
-            seq_len=build_info.seq_len,
-            cans_num=build_info.cans_num,
-            use_ids=build_info.use_ids,
-            use_desc=build_info.use_desc
-            )
-            if evaluate_only:
+        if not evaluate_only:
+            try:
+                datasets['reason'] = dataset_cls(
+                text_processor=self.text_processors["train"],
+                ann_paths=[os.path.join(storage_path, 'reason')],
+                seq_len=build_info.seq_len,
+                cans_num=build_info.cans_num,
+                use_ids=build_info.use_ids,
+                use_desc=build_info.use_desc
+                )
+            except:
+                print(os.path.join(storage_path, 'reason_ood2.pkl'))
+            try:
+                datasets['valid'] = dataset_cls(
+                text_processor=self.text_processors["train"],
+                ann_paths=[os.path.join(storage_path, 'valid_small')],
+                seq_len=build_info.seq_len,
+                cans_num=build_info.cans_num,
+                use_ids=build_info.use_ids,
+                use_desc=build_info.use_desc
+                )
+            except:
+                print(os.path.join(storage_path, 'valid_small'), os.path.exists(os.path.join(storage_path, 'valid_small_seqs.pkl')))
+        else:
+            try:
                 #0915
                 datasets['test'] = dataset_cls(
                 text_processor=self.text_processors["train"],
@@ -204,9 +211,8 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 use_ids=build_info.use_ids,
                 use_desc=build_info.use_desc
                 )
-        except:
-            print(os.path.join(storage_path, 'valid_small'), os.path.exists(os.path.join(storage_path, 'valid_small_seqs.pkl')))
-            raise FileNotFoundError("file not found.")
+            except:
+                print(os.path.join(storage_path, 'test_ood2.pkl'))
         return datasets
 
 

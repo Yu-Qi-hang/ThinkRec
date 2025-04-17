@@ -170,6 +170,7 @@ if __name__ == "__main__":
     for idx in cluster:
         data_group_dir_idx = os.path.join(data_dir,f'grouped_{n_clusters}',f'group_{idx}')
         os.makedirs(data_group_dir_idx,exist_ok=True)
+        os.system(f'ln -s {data_dir}/id2title.json {data_group_dir_idx}/')
         train_idx = train_[train_['uid'].isin(cluster[idx])]
         valid_idx = valid_[valid_['uid'].isin(cluster[idx])]
         # valid_small_idx = valid_small[valid_small['uid'].isin(data_group_dict[idx])]

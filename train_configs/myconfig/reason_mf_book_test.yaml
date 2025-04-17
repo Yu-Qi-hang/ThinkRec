@@ -29,8 +29,8 @@ model:
   generate_config:
     enable: True
     max_len: 512
-  # prompt_path: "prompts/reflection_amazon.txt"
-  prompt_path: "prompts/tallrec_amazon_.txt"
+  prompt_path: "prompts/reflection_amazon.txt"
+  # prompt_path: "prompts/tallrec_amazon_.txt"
   # prompt_path: "prompts/collm_amazon_.txt"
 
   max_txt_len: 2048
@@ -74,8 +74,8 @@ datasets:
     build_info:
       seq_len: 10
       cans_num: 1
-      use_ids: False
-      use_desc: False
+      use_ids: True
+      use_desc: True
       storage: /data/yuqihang/datasets/collm-datasets/bookdu/
 
 run:

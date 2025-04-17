@@ -1427,6 +1427,8 @@ class MiniGPT4Rec_v3(Rec2Base):
                 model.load_state_dict(torch.load(os.path.join(ckpt_path,f"project_model_{tag}.pth"), map_location="cpu"), strict=False)
                 adapters = os.listdir(os.path.join(ckpt_path,"lora_adapter"))
                 for adapter in adapters:
+                    if 'group' not in adapter:
+                        continue
                     model.llama_model_lora.load_adapter(os.path.join(ckpt_path,"lora_adapter",adapter), adapter_name=adapter)
                 model.llama_model_lora.set_adapter("group0")
                 if len(adapters)>1:

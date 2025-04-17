@@ -58,7 +58,7 @@ datasets:
       cans_num: 1
       use_ids: False
       use_desc: True
-      storage: /data/yuqihang/datasets/collm-datasets/bookdu/group_1/
+      storage: /home/yuqihang/projects/CoLLM/collm-datasets/bookdu/grouped_2/group_0/
 
 run:
   task: rec_pretrain
@@ -73,7 +73,7 @@ run:
   mode: 'v3'
 
   weight_decay: 1e-3 #0.05
-  max_epoch: 1000
+  max_epoch: 15
   iters_per_epoch: 800 #100 #50 #200
   batch_size_train: 1 #48
   batch_size_eval: 2 #48
