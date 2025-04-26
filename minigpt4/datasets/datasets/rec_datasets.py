@@ -75,9 +75,9 @@ def convert_title_list_v4(samples=None,labels=None,withid=False):
 
     for idx, title in enumerate(titles):
         if title.strip(" ")=="":
-            items.append("")
-            continue
-        item = f'"{title.strip(" ")}"'
+            item = f'"Unknow"'
+        else:
+            item = f'"{title.strip(" ")}"'
         if withid:
             item = f'{item} with feature {itemsymbol}'
         if labels is not None:
@@ -320,7 +320,7 @@ class MoiveOOData_sasrec(RecBaseDataset):
 
 
 class AmazonOOData(RecBaseDataset):
-    def __init__(self, text_processor=None, ann_paths=None, seq_len=None, cans_num=10, use_ids=False, use_desc=True):
+    def __init__(self, text_processor=None, ann_paths=None, seq_len=None, user2group='', use_ids=False, use_desc=True):
         super().__init__()
         # self.vis_root = vis_root
         # self.annotation = pd.read_csv(ann_paths[0],sep='\t', index_col=None,header=0)[['uid','iid','title','sessionItems', 'sessionItemTitles']]
@@ -336,7 +336,7 @@ class AmazonOOData(RecBaseDataset):
         self.use_desc = use_desc
         self.prompt_flag = False
         self.user2group = None
-        user2group = f"{'/'.join(ann_paths[0].split('/')[:-1])}/user_group.csv"
+        # user2group = f"{'/'.join(ann_paths[0].split('/')[:-1])}/user_group.csv"
         # print(user2group,os.path.exists(user2group))
         # if os.path.exists(user2group) and ('valid' in ann_paths[0] or 'test' in ann_paths[0]):
         if os.path.exists(user2group) and 'test' in ann_paths[0]:
@@ -397,7 +397,6 @@ class AmazonOOData(RecBaseDataset):
         self.user_num = self.annotation['UserID'].max()+1
         self.item_num = self.annotation['TargetItemID'].max()+1
         self.items = list(set(self.annotation['TargetItemID']))
-        self.cans_num = cans_num
         self.text_processor = text_processor
         if self.user2group is not None:
             # print(type(self.annotation['UserID'][0]),type(self.user2group['user_id'][0]))
@@ -432,10 +431,13 @@ class AmazonOOData(RecBaseDataset):
         ann = self.annotation.iloc[index]
         if self.use_his:
             a = ann['InteractedItemIDs']
-            InteractedNum = len(a)
-            if a[0] == 0:
-                InteractedNum -= 1
-
+            # InteractedNum = len(a)
+            # if a[0] == 0:
+            #     InteractedNum -= 1
+            # 找到第一个非零元素的索引
+            first_non_zero_index = next((i for i, x in enumerate(a) if x != 0), len(a))
+            # 更新 InteractedNum 为非零元素的数量
+            InteractedNum = len(a) - first_non_zero_index
             if len(a) < self.max_lenght:
                 b = [0]* (self.max_lenght-len(a)) # assuming padding idx is zero
                 b.extend(a)
@@ -474,7 +476,6 @@ class AmazonOOData(RecBaseDataset):
                 # "TargetItemTitle": "\""+ann["TargetItemTitle"].strip(' ')+"\"",
                 # "TargetItemDesc": "\""+ann["TargetItemDesc"].strip(' ')+"\"",
                 "InteractedNum": InteractedNum,
-                # "CandidateNum": self.cans_num,
                 "label": ann['label'],
                 # "hot": 1/(1+self.id2hot_smoothed[ann['UserID']])
             }
@@ -498,19 +499,6 @@ class AmazonOOData(RecBaseDataset):
         if self.prompt_flag:
             one_sample['prompt_flag'] = ann['prompt_flag']
         return one_sample 
-
-    def negative_sampling(self,seq_unpad,next_item):
-        canset=[i for i in self.items if i not in seq_unpad and i!=next_item]
-        CandidateIDs=random.sample(canset, self.cans_num-1)+[next_item]
-        random.shuffle(CandidateIDs)
-        CandidateTitles, CandidateDescs = self.turnid2txt(CandidateIDs)
-        # CandidateTitles = []
-        # CandidateDescs = []
-        # for itemid in CandidateIDs:
-        #     title_desc = self.id2title[str(itemid)]
-        #     CandidateTitles.append(title_desc['title'])
-        #     CandidateDescs.append(title_desc['description'])
-        return {"CandidateItemIDs": CandidateIDs, "CandidateItemTitles": CandidateTitles, "CandidateItemDescs": CandidateDescs}
     
     def turnid2txt(self,ids):
         if isinstance(ids,(int,np.integer)):

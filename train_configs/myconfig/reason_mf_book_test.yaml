@@ -1,7 +1,7 @@
 model:
   arch: mini_gpt4rec_v3
   model_type: pretrain_vicuna
-  infer_type: "native" # quest, cake
+  infer_type: "native" # native, quest, cake
   quest_config:
     # enable: False
     page_size: 16
@@ -11,7 +11,7 @@ model:
     # enable: False
     compress: True
     cascading: True
-    cache_size: 1024
+    cache_size: 256
     window_size: 32
     tau1: 1.6
     tau2: 0.4

@@ -456,7 +456,7 @@ class RunnerBase:
                                 agg_metrics = val_log["agg_metrics"]
                                 if agg_metrics > best_agg_metric and split_name == "valid":
                                     best_epoch_auc, best_agg_metric = cur_epoch, agg_metrics
-                                    self._save_checkpoint(cur_epoch, is_best=True, tag='auc')
+                                    # self._save_checkpoint(cur_epoch, is_best=True, tag='auc')
                                     not_change = 0
 
                                 uauc = val_log["uauc"][0]
@@ -468,7 +468,7 @@ class RunnerBase:
 
                                 if uauc > best_uauc and split_name == "valid":
                                     best_epoch_uauc, best_uauc = cur_epoch, uauc
-                                    self._save_checkpoint(cur_epoch, is_best=True, tag='uauc')
+                                    # self._save_checkpoint(cur_epoch, is_best=True, tag='uauc')
                                     not_change = 0
 
                                 val_log.update({"best_epoch_auc": best_epoch_auc})

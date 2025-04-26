@@ -18,11 +18,20 @@ import warnings
 import argparse
 
 class Rec_config:
-    def __init__(self, user_num, item_num, embedding_size):
-        self.user_num = user_num
-        self.item_num = item_num
-        self.embedding_size = embedding_size
-
+    def __init__(self, para_dict):
+        self.user_num = para_dict.get("user_num", -100)
+        self.item_num = para_dict.get("item_num", -100)
+        self.embedding_size = para_dict.get("embedding_size", 256)
+    def add_para(self, para_dict):
+        self.embed_size = para_dict.get("embed_size", 64)
+        self.gcn_layers = para_dict.get("gcn_layers", 2)
+        self.dropout = para_dict.get("dropout", False)
+        self.keep_prob = para_dict.get("keep_prob", 0.6)
+        self.A_n_fold = para_dict.get("A_n_fold", 100)
+        self.A_split = para_dict.get("A_split", False)
+        self.pretrain = para_dict.get("pretrain", 0)
+        self.init_emb = para_dict.get("init_emb", 1e-1)
+        self.dataset = para_dict.get("dataset", None)
 def init_rec_encoder(rec_model, config):
     if rec_model == "MF":
         print("### rec_encoder:", "MF")
@@ -42,22 +51,40 @@ def init_rec_encoder(rec_model, config):
     return rec_model
 
 # 方法1: K-Means聚类
-def kmeans_clustering(data, max_clusters=10):
-    silhouette_scores = []
-    cluster_range = range(2, max_clusters+1, 2)
-    
-    for n_clusters in tqdm(cluster_range):
-        kmeans = MiniBatchKMeans(n_clusters=n_clusters, random_state=42, batch_size=1024, n_init=10)
-        cluster_labels = kmeans.fit_predict(data)
-        silhouette_avg = silhouette_score(data, cluster_labels)
-        silhouette_scores.append(silhouette_avg)
-    
-    best_n_clusters = cluster_range[np.argmax(silhouette_scores)]
-    print(f"最佳聚类数: {best_n_clusters}")
+def kmeans_clustering(data, n_clusters=None):
+    if n_clusters is None or n_clusters<0:
+        silhouette_scores = []
+        cluster_range = range(2, 11)
+        
+        for n_clusters in tqdm(cluster_range):
+            kmeans = MiniBatchKMeans(n_clusters=n_clusters, random_state=42, batch_size=1024, n_init=10)
+            cluster_labels = kmeans.fit_predict(data)
+            silhouette_avg = silhouette_score(data, cluster_labels)
+            silhouette_scores.append(silhouette_avg)
+        best_n_clusters = cluster_range[np.argmax(silhouette_scores)]
+        print(f"最佳聚类数: {best_n_clusters}")
+    else:
+        best_n_clusters = n_clusters
     final_kmeans = MiniBatchKMeans(n_clusters=best_n_clusters, random_state=42, batch_size=1024, n_init=10)
-    return final_kmeans.fit_predict(data)
+    return best_n_clusters,final_kmeans.fit_predict(data)
 
 # 方法2: 层次聚类
+# def hierarchical_clustering(data, n_clusters=None):
+#     if n_clusters is None or n_clusters<0:
+#         silhouette_scores = []
+#         cluster_range = range(2, 11)
+        
+#         for n_clusters in tqdm(cluster_range):
+#             kmeans = AgglomerativeClustering(n_clusters=n_clusters, affinity='euclidean', linkage='ward')
+#             cluster_labels = kmeans.fit_predict(data)
+#             silhouette_avg = silhouette_score(data, cluster_labels)
+#             silhouette_scores.append(silhouette_avg)
+#         best_n_clusters = cluster_range[np.argmax(silhouette_scores)]
+#         print(f"最佳聚类数: {best_n_clusters}")
+#     else:
+#         best_n_clusters = n_clusters
+#     final_kmeans = AgglomerativeClustering(n_clusters=n_clusters, affinity='euclidean', linkage='ward')
+#     return best_n_clusters,final_kmeans.fit_predict(data)
 def hierarchical_clustering(data, n_clusters=5):
     clustering = AgglomerativeClustering(n_clusters=n_clusters, affinity='euclidean', linkage='ward')
     labels = clustering.fit_predict(data)
@@ -86,7 +113,7 @@ def dbscan_clustering(data, dim=256):
     print(f"噪声点数量: {np.sum(labels == -1)}")
     return labels
 
-# 可视化 (使用t-SNE降维到2D)
+# # 可视化 (使用t-SNE降维到2D)
 def visualize_clusters(embeddings, labels, save_fig):
     tsne = TSNE(n_components=2, random_state=42)
     embeddings_2d = tsne.fit_transform(embeddings)
@@ -97,18 +124,36 @@ def visualize_clusters(embeddings, labels, save_fig):
     plt.xlabel('t-SNE 1')
     plt.ylabel('t-SNE 2')
     plt.savefig(save_fig)
-
+# # 可视化 (使用t-SNE降维到3D)
+# def visualize_clusters(embeddings, labels, save_fig):
+#     tsne = TSNE(n_components=3, random_state=42)  # 将 n_components 改为 3
+#     embeddings_3d = tsne.fit_transform(embeddings)
+#     fig = plt.figure(figsize=(10, 8))
+#     ax = fig.add_subplot(111, projection='3d')  # 添加 3D 子图
+#     scatter = ax.scatter(embeddings_3d[:, 0], embeddings_3d[:, 1], embeddings_3d[:, 2], c=labels, cmap='viridis', alpha=0.6)
+#     plt.colorbar(scatter)
+#     ax.set_title('t-SNE Visualization of User Clusters')
+#     ax.set_xlabel('t-SNE 1')
+#     ax.set_ylabel('t-SNE 2')
+#     ax.set_zlabel('t-SNE 3')
+#     plt.savefig(save_fig)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_dir', type=str, default="/home/yuqihang/projects/CoLLM/collm-datasets/bookdu")
-    parser.add_argument('--n_clusters', type=int, default=2)
+    parser.add_argument('--mode', type=str, default="h")
+    parser.add_argument('--n', type=int, default=-1)
     parser.add_argument('--pretrained_rec', type=str, default="/data/yuqihang/result/CoLLM/checkpoints/mf/0228_booknew_best_model_d256_lr0.001_wd1e-06.pth")
+    # parser.add_argument('--data_ref', type=str, default="/home/yuqihang/projects/CoLLM/collm-datasets/booknew")
     args = parser.parse_args()
     data_dir = args.data_dir
-    n_clusters = args.n_clusters
-    rec_model = "MF"
+    if data_dir[-2:] == 'du':
+        args.data_ref = data_dir[:-2]+'new'
+    if not os.path.exists(args.data_ref):
+        args.data_ref = data_dir[:-2]
+    n_clusters = args.n
+    rec_model = "lightgcn" if 'lightgcn' in args.pretrained_rec else 'MF'
     pretrained_rec = args.pretrained_rec
 
     train_ = pd.read_pickle(os.path.join(data_dir,"train_ood2.pkl"))
@@ -119,10 +164,19 @@ if __name__ == "__main__":
     item_num = max(train_.iid.max(),valid_.iid.max(),test_.iid.max())+1
 
     print('Loading Rec_model')
-    rec_config = Rec_config(user_num=int(user_num), item_num=int(item_num), embedding_size=256)
+    if rec_model == "MF":
+        rec_config_ = {'user_num':int(user_num), 'item_num':int(item_num), 'embedding_size':256}
+        rec_config = Rec_config(rec_config_)
+    elif rec_model == "lightgcn":
+        rec_config_ = {'user_num':int(user_num), 'item_num':int(item_num), 'embedding_size':64, 'embed_size':64, 'dataset':args.data_ref.strip('/').split('/')[-1]}
+        rec_config = Rec_config(rec_config_)
+        rec_config.add_para(rec_config_)
     rec_encoder = init_rec_encoder(rec_model, rec_config)
     rec_encoder.load_state_dict(torch.load(pretrained_rec, map_location="cpu"))
-    print("successfully load the pretrained model......")
+    if rec_model == "lightgcn":
+        from minigpt4.datasets.datasets.rec_gnndataset import GnnDataset
+        gnndata = GnnDataset(rec_config, args.data_ref)
+        rec_encoder._set_graph(gnndata.Graph)
 
     for name, param in rec_encoder.named_parameters():
         param.requires_grad = False
@@ -141,9 +195,11 @@ if __name__ == "__main__":
     scaler = StandardScaler()
     embeddings_scaled = scaler.fit_transform(user_embeds)
     # 执行聚类 (这里以K-Means为例)
-    # cluster_labels = kmeans_clustering(embeddings_scaled, max_clusters=5)
     # cluster_labels = dbscan_clustering(embeddings_scaled, dim=256)
-    cluster_labels = hierarchical_clustering(embeddings_scaled, n_clusters=n_clusters)
+    if args.mode == "k":
+        n_clusters, cluster_labels = kmeans_clustering(embeddings_scaled, n_clusters=n_clusters)
+    else:
+        cluster_labels = hierarchical_clustering(embeddings_scaled, n_clusters=n_clusters)
     # 将结果保存到DataFrame
     cluster = {}
     results = pd.DataFrame({
@@ -155,7 +211,7 @@ if __name__ == "__main__":
             cluster[int(cluster_label)] = [user]
         else:
             cluster[int(cluster_label)].append(user)
-    save_fig = os.path.join(data_dir,f'user_group{n_clusters}.png')
+    save_fig = os.path.join(data_dir,f'{rec_model.lower()}_user_group_{n_clusters}.png')
     visualize_clusters(embeddings_scaled, cluster_labels, save_fig)
     # 查看聚类结果
     print("聚类结果统计:")
@@ -163,18 +219,19 @@ if __name__ == "__main__":
     # 保存结果到CSV
     for cluster_label,users in cluster.items():
         cluster[cluster_label] = list(set(sorted(users)))
-    results.to_csv(os.path.join(data_dir,f'user_group{n_clusters}.csv'), index=False)
-    with open(os.path.join(data_dir,f'user_group{n_clusters}.json'),'w')as f:
+    results.to_csv(os.path.join(data_dir,f'{rec_model.lower()}_user_group_{n_clusters}.csv'), index=False)
+    with open(os.path.join(data_dir,f'{rec_model.lower()}_user_group_{n_clusters}.json'),'w')as f:
         json.dump(cluster,f,indent=4)
     print(f'split data into {data_dir}/grouped_{n_clusters}')
     for idx in cluster:
-        data_group_dir_idx = os.path.join(data_dir,f'grouped_{n_clusters}',f'group_{idx}')
+        data_group_dir_idx = os.path.join(data_dir,rec_model.lower(),f'grouped_{n_clusters}',f'group_{idx}')
         os.makedirs(data_group_dir_idx,exist_ok=True)
         os.system(f'ln -s {data_dir}/id2title.json {data_group_dir_idx}/')
         train_idx = train_[train_['uid'].isin(cluster[idx])]
         valid_idx = valid_[valid_['uid'].isin(cluster[idx])]
         # valid_small_idx = valid_small[valid_small['uid'].isin(data_group_dict[idx])]
-        valid_small_idx = valid_idx.sample(frac=0.5,random_state=2025)
+        # valid_small_idx = valid_idx.sample(frac=0.5,random_state=2025)
+        valid_small_idx = valid_idx.sample(n=10000,random_state=2025) if len(valid_idx) > 10000 else valid_idx
         # test_idx = test_[test_['uid'].isin(cluster[idx])]
         reason_idx = reason_[reason_['uid'].isin(cluster[idx])]
         print(f'{idx} data size:{len(train_idx)},{len(valid_idx)},{len(valid_small_idx)},{len(reason_idx)}')

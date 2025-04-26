@@ -84,10 +84,10 @@ class GnnDataset(BasicDataset):
         self.mode = self.mode_dict['train']
 
 
-        train_file = path+"train_ood2.pkl"
+        train_file = os.path.join(path,"train_ood2.pkl")
+        valid_file = os.path.join(path,"valid_ood2.pkl")
+        test_file = os.path.join(path,"test_ood2.pkl")
 
-        valid_file = path+"valid_ood2.pkl"
-        test_file = path + "test_ood2.pkl"
         self.path = path
         
         self.traindataSize = 0
@@ -183,7 +183,7 @@ class GnnDataset(BasicDataset):
         print("loading adjacency matrix")
         if self.Graph is None:
             try:
-                pre_adj_mat = sp.load_npz(self.path + '/s_pre_adj_mat_'+mode+'.npz')
+                pre_adj_mat = sp.load_npz(os.path.join(self.path, 's_pre_adj_mat_'+mode+'.npz'))
                 print("successfully loaded...")
                 norm_adj = pre_adj_mat
             except :
@@ -206,7 +206,7 @@ class GnnDataset(BasicDataset):
                 norm_adj = norm_adj.tocsr()
                 end = time()
                 print(f"costing {end-s}s, saved norm_mat...")
-                sp.save_npz(self.path + '/s_pre_adj_mat_'+mode+'.npz', norm_adj)
+                sp.save_npz(os.path.join(self.path, 's_pre_adj_mat_'+mode+'.npz'), norm_adj)
 
             if self.split == True:
                 self.Graph = self._split_A_hat(norm_adj)

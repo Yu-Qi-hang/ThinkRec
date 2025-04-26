@@ -1,4 +1,5 @@
 from minigpt4.models.rec_base_models import MatrixFactorization, LightGCN 
+from minigpt4.tasks.rec_base_task import reorganize_by_user, uAUC_me, hr_at_k, map_at_k, ndcg_at_k
 from torch.utils.data.dataset import Dataset
 from torch.utils.data.dataloader import DataLoader
 from minigpt4.datasets.datasets.rec_gnndataset import GnnDataset
@@ -15,55 +16,55 @@ import datetime
 import time
 import os
 
-def uAUC_me(user, predict, label):
-    if not isinstance(predict,np.ndarray):
-        predict = np.array(predict)
-    if not isinstance(label,np.ndarray):
-        label = np.array(label)
-    predict = predict.squeeze()
-    label = label.squeeze()
+# def uAUC_me(user, predict, label):
+#     if not isinstance(predict,np.ndarray):
+#         predict = np.array(predict)
+#     if not isinstance(label,np.ndarray):
+#         label = np.array(label)
+#     predict = predict.squeeze()
+#     label = label.squeeze()
 
-    start_time = time.time()
-    u, inverse, counts = np.unique(user,return_inverse=True,return_counts=True) # sort in increasing
-    index = np.argsort(inverse)
-    candidates_dict = {}
-    k = 0
-    total_num = 0
-    only_one_interaction = 0
-    computed_u = []
-    for u_i in u:
-        start_id,end_id = total_num, total_num+counts[k]
-        u_i_counts = counts[k]
-        index_ui = index[start_id:end_id]
-        if u_i_counts ==1:
-            only_one_interaction += 1
-            total_num += counts[k]
-            k += 1
-            continue
-        # print(index_ui, predict.shape)
-        candidates_dict[u_i] = [predict[index_ui], label[index_ui]]
-        total_num += counts[k]
+#     start_time = time.time()
+#     u, inverse, counts = np.unique(user,return_inverse=True,return_counts=True) # sort in increasing
+#     index = np.argsort(inverse)
+#     candidates_dict = {}
+#     k = 0
+#     total_num = 0
+#     only_one_interaction = 0
+#     computed_u = []
+#     for u_i in u:
+#         start_id,end_id = total_num, total_num+counts[k]
+#         u_i_counts = counts[k]
+#         index_ui = index[start_id:end_id]
+#         if u_i_counts ==1:
+#             only_one_interaction += 1
+#             total_num += counts[k]
+#             k += 1
+#             continue
+#         # print(index_ui, predict.shape)
+#         candidates_dict[u_i] = [predict[index_ui], label[index_ui]]
+#         total_num += counts[k]
         
-        k+=1
-    print("only one interaction users:",only_one_interaction)
-    auc=[]
-    only_one_class = 0
+#         k+=1
+#     print("only one interaction users:",only_one_interaction)
+#     auc=[]
+#     only_one_class = 0
 
-    for ui,pre_and_true in candidates_dict.items():
-        pre_i,label_i = pre_and_true
-        try:
-            ui_auc = roc_auc_score(label_i,pre_i)
-            auc.append(ui_auc)
-            computed_u.append(ui)
-        except:
-            only_one_class += 1
-            # print("only one class")
+#     for ui,pre_and_true in candidates_dict.items():
+#         pre_i,label_i = pre_and_true
+#         try:
+#             ui_auc = roc_auc_score(label_i,pre_i)
+#             auc.append(ui_auc)
+#             computed_u.append(ui)
+#         except:
+#             only_one_class += 1
+#             # print("only one class")
         
-    auc_for_user = np.array(auc)
-    print("computed user:", auc_for_user.shape[0], "can not users:", only_one_class)
-    uauc = auc_for_user.mean()
-    print("uauc for validation Cost:", time.time()-start_time,'uauc:', uauc)
-    return uauc, computed_u, auc_for_user
+#     auc_for_user = np.array(auc)
+#     print("computed user:", auc_for_user.shape[0], "can not users:", only_one_class)
+#     uauc = auc_for_user.mean()
+#     print("uauc for validation Cost:", time.time()-start_time,'uauc:', uauc)
+#     return uauc, computed_u, auc_for_user
 
 
 class model_hyparameters(object):
@@ -166,8 +167,8 @@ def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False, save_
             print("cold data size:", test_data.shape[0])
             # pass
 
-    user_num = train_data[:,0].max() + 1
-    item_num = train_data[:,1].max() + 1
+    user_num = max(train_data[:,0].max(),valid_data[:,0].max(),test_data[:,0].max())+1
+    item_num = max(train_data[:,1].max(),valid_data[:,1].max(),test_data[:,1].max())+1
 
     lgcn_config={
         "user_num": int(user_num),
@@ -192,8 +193,6 @@ def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False, save_
     lgcn_config['user_num'] = int(gnndata.m_users)
     lgcn_config['item_num'] = int(gnndata.n_items)
 
-    train_data_loader = DataLoader(train_data, batch_size = train_config['batch_size'], shuffle=True)
-    valid_data_loader = DataLoader(valid_data, batch_size = train_config['batch_size'], shuffle=False)
     test_data_loader = DataLoader(test_data, batch_size = train_config['batch_size'], shuffle=False)
 
     model = LightGCN(lgcn_config).cuda()
@@ -205,25 +204,13 @@ def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False, save_
     criterion = nn.BCEWithLogitsLoss()
 
     if not need_train:
+        test_small_path = os.path.join(data_dir,"test_small_ood2.pkl")
+        if os.path.exists(test_small_path):
+            test_data = pd.read_pickle(test_small_path)[['uid','iid', 'label']].values
+            test_data_loader = DataLoader(test_data, batch_size = train_config['batch_size'], shuffle=False)
+        
         model.load_state_dict(torch.load(save_file))
         model.eval()
-        # pre=[]
-        # label = []
-        # users = []
-        # for batch_id,batch_data in enumerate(valid_data_loader):
-        #     batch_data = batch_data.cuda()
-        #     ui_matching = model(batch_data[:,0].long(),batch_data[:,1].long())
-        #     pre.extend(ui_matching.detach().cpu().numpy())
-        #     label.extend(batch_data[:,-1].cpu().numpy())
-        #     users.extend(batch_data[:,0].cpu().numpy())
-        # valid_auc = roc_auc_score(label,pre)
-        # valid_uauc, _, _ = uAUC_me(users, pre, label)
-        # label = np.array(label)
-        # pre = np.array(pre)
-        # thre = 0.1
-        # pre[pre>=thre] =  1
-        # pre[pre<thre]  =0
-        # val_acc = (label==pre).mean()
 
         pre=[]
         label = []
@@ -235,19 +222,22 @@ def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False, save_
             label.extend(batch_data[:,-1].cpu().numpy())
             users.extend(batch_data[:,0].cpu().numpy())
         test_auc = roc_auc_score(label,pre)
-        test_uauc,_,_ = uAUC_me(users, pre, label)
+        test_logloss = F.binary_cross_entropy_with_logits(torch.tensor(pre), torch.tensor(label).float()).item()  # 计算logloss
+        user_dict = reorganize_by_user(users, pre, label)
+        test_uauc,_,_ = uAUC_me(user_dict)
         label = np.array(label)
         pre = np.array(pre)
         thre = 0.1
         pre[pre>=thre] =  1
         pre[pre<thre]  =0
         test_acc = (label==pre).mean()
-
-        print("test_auc:{}, test_uauc:{}, acc: {}".format(test_auc, test_uauc, test_acc))
-        # print("valid_auc:{}, valid_uauc:{}, test_auc:{}, test_uauc:{}, acc: {}".format(valid_auc, valid_uauc, test_auc, test_uauc, val_acc))
+        print(f"test auc:{test_auc:.4f}, uauc:{test_uauc:.4f}, acc: {test_acc:.4f}, logloss: {test_logloss:.4f}")
+        for topk in [1, 2, 3, 5, 10]:
+            print(f"HR@{topk}: {hr_at_k(user_dict, topk):.4f}, NDCG@{topk}: {ndcg_at_k(user_dict, topk):.4f}, MAP@{topk}: {map_at_k(user_dict, topk):.4f}")
         return 
     
-
+    train_data_loader = DataLoader(train_data, batch_size = train_config['batch_size'], shuffle=True)
+    valid_data_loader = DataLoader(valid_data, batch_size = train_config['batch_size'], shuffle=False)
     for epoch in range(train_config['epoch']):
         model.train()
         for bacth_id, batch_data in enumerate(train_data_loader):
@@ -270,7 +260,8 @@ def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False, save_
                 label.extend(batch_data[:,-1].cpu().numpy())
                 users.extend(batch_data[:,0].cpu().numpy())
             valid_auc = roc_auc_score(label,pre)
-            valid_uauc,_,_ = uAUC_me(users, pre, label)
+            user_dict = reorganize_by_user(users, pre, label)
+            valid_uauc,_,_ = uAUC_me(user_dict)
             pre=[]
             label = []
             users = []
@@ -281,7 +272,8 @@ def run_a_trail(train_config, data_dir='', log_file=None, save_mode=False, save_
                 label.extend(batch_data[:,-1].cpu().numpy())
                 users.extend(batch_data[:,0].cpu().numpy())
             test_auc = roc_auc_score(label,pre)
-            test_uauc,_,_ = uAUC_me(users, pre, label)
+            user_dict = reorganize_by_user(users, pre, label)
+            test_uauc,_,_ = uAUC_me(user_dict)
             updated = early_stop.update({'valid_auc':valid_auc, 'valid_uauc': valid_uauc,'test_auc':test_auc, 'test_uauc': test_uauc,'epoch':epoch})
             if updated and save_mode:
                 torch.save(model.state_dict(),save_file)
@@ -306,34 +298,53 @@ if __name__=='__main__':
     parser.add_argument("--save_path", type=str, default="/data/yuqihang/result/CoLLM/checkpoints/lightgcn/")
     parser.add_argument("--istrain", action='store_true')
     args = parser.parse_args()
-
-    lr_=[1e-2,1e-3,1e-4] #1e-2
-    wd_ = [1e-3,1e-4,1e-5]
-    embedding_size_ = [64, 128, 256]
     istrain = args.istrain
-    data_dir = args.data_dir
-    save_path = args.save_path
-    os.makedirs(save_path, exist_ok=True)
-    print(f"data_dir:{data_dir}, save_path:{save_path}, istrain:{istrain}")
 
-    logfile = f"{data_dir.strip('/').split('/')[-1].replace('-','')}_best_model.txt"
-    f=open(os.path.join(save_path,logfile),'a')
+    if istrain:
+        lr_=[1e-2,1e-3,1e-4] #1e-2
+        wd_ = [1e-3,1e-4,1e-5]
+        embedding_size_ = [64, 128, 256]
+        data_dir = args.data_dir
+        save_path = args.save_path
+        os.makedirs(save_path, exist_ok=True)
+        print(f"data_dir:{data_dir}, save_path:{save_path}, istrain:{istrain}")
 
-    for lr in lr_:
-        for wd in wd_:
-            for embedding_size in embedding_size_:
-                model_name = f"{datetime.datetime.now().strftime('%m%d')}_{data_dir.strip('/').split('/')[-1].replace('-','')}_best_model_d{embedding_size}_lr{lr}_wd{wd}.pth"
-                train_config={
-                    'lr': lr,
-                    'wd': wd,
-                    'embedding_size': embedding_size,
-                    "epoch": 5000,
-                    "eval_epoch":1,
-                    "patience":50,
-                    "batch_size":1024,
-                    "gcn_layer": 2
-                }
-                print(train_config)
-                run_a_trail(train_config=train_config, data_dir=data_dir, log_file=f, save_mode=istrain, save_file=os.path.join(save_path, model_name), need_train=istrain)
-    if f is not None:
-        f.close()
+        logfile = f"{data_dir.strip('/').split('/')[-1].replace('-','')}_best_model.txt"
+        f=open(os.path.join(save_path,logfile),'a')
+
+        for lr in lr_:
+            for wd in wd_:
+                for embedding_size in embedding_size_:
+                    model_name = f"{datetime.datetime.now().strftime('%m%d')}_{data_dir.strip('/').split('/')[-1].replace('-','')}_best_model_d{embedding_size}_lr{lr}_wd{wd}.pth"
+                    train_config={
+                        'lr': lr,
+                        'wd': wd,
+                        'embedding_size': embedding_size,
+                        "epoch": 5000,
+                        "eval_epoch":1,
+                        "patience":50,
+                        "batch_size":1024,
+                        "gcn_layer": 2
+                    }
+                    print(train_config)
+                    run_a_trail(train_config=train_config, data_dir=data_dir, log_file=f, save_mode=istrain, save_file=os.path.join(save_path, model_name), need_train=istrain)
+        if f is not None:
+            f.close()
+    else:
+        data_dir = args.data_dir
+        model_path = args.save_path
+        settings = model_path.replace('.pth','').split('_')
+        embedding_size, lr, wd  = int(settings[-3][1:]), float(settings[-2][2:]), float(settings[-1][2:])
+        print(f"data_dir:{data_dir}, model_path:{model_path}, istrain:{istrain}")
+        train_config={
+            'lr': lr,
+            'wd': wd,
+            'embedding_size': embedding_size,
+            "epoch": 5000,
+            "eval_epoch":1,
+            "patience":50,
+            "batch_size":1024,
+            "gcn_layer": 2
+        }
+        print(train_config)
+        run_a_trail(train_config=train_config, data_dir=data_dir, log_file=None, save_mode=istrain, save_file=model_path, need_train=istrain)

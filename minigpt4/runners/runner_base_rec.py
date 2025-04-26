@@ -140,11 +140,14 @@ class RecRunnerBase(RunnerBase):
         # logging.info("Saving checkpoint at epoch {} to {}.".format(cur_epoch, save_to))
         # torch.save(save_obj, save_to)
         for k in list(state_dict.keys()):
-            if 'lora_' in k or 'base_model' in k:
+            if 'lora_' in k :
+                del state_dict[k]
+                save_lora = True
+            elif 'base_model' in k:
                 del state_dict[k]
         if len(list(state_dict.keys())) > 0:
             torch.save(state_dict, os.path.join(self.output_dir, f"project_model_{tag}.pth"))
-        else:
+        if save_lora:
             # 保存 LoRA 适配器参数
             os.makedirs(os.path.join(self.output_dir, f"adapter_{tag}"),exist_ok=True)
             lora_state_dict = get_peft_model_state_dict(model_no_ddp.llama_model_lora)
@@ -165,4 +168,5 @@ class RecRunnerBase(RunnerBase):
                 with open(os.path.join(self.output_dir, f"adapter_{tag}", f"adapter_config.json"),'w') as f:
                     json.dump(adapter_config,f,indent=4)
             # print(model_no_ddp.llama_model_lora.peft_config,type(model_no_ddp.llama_model_lora.peft_config))
+        logging.info("Saving checkpoint at epoch {} to {}.".format(cur_epoch, self.output_dir))
             # model_no_ddp.llama_model_lora.save_pretrained(os.path.join(self.output_dir, f"adapter_{tag}"))

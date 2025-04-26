@@ -30,6 +30,8 @@ class Config:
         model_config = self.build_model_config(config, **user_config)
         dataset_config = self.build_dataset_config(config)
 
+        print(user_config)
+
         # Validate the user-provided runner configuration
         # model and dataset configuration are supposed to be validated by the respective classes
         # [TODO] validate the model/dataset configuration

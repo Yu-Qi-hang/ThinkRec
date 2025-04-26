@@ -4,16 +4,14 @@ model:
   freeze_rec: True
   
   #stage1
-  freeze_proj: True #    
-  freeze_lora:
-    enable: True
-    layers: 32
-  prompt_path: "prompts/tallrec_amazon_.txt"
+  # freeze_proj: True # 
+  # freeze_lora: False #
+  # prompt_path: "prompts/tallrec_amazon_.txt"
 
   # #stage2
-  # freeze_proj: True
-  # freeze_lora: True
-  # prompt_path: "prompts/collm_amazon.txt"
+  freeze_proj: False
+  freeze_lora: True
+  prompt_path: "prompts/collm_amazon_.txt"
 
   max_txt_len: 2048
   proj_token_num: 1
@@ -25,7 +23,7 @@ model:
   user_num: -100
   item_num: -100
   ans_type: 'v2'
-  rec_model: "MF" #[MF, lightgcn,.....], see "Rec2Base" class in  minigpt4/models/rec_model.py
+  rec_model: "lightgcn" #[MF, lightgcn,.....], see "Rec2Base" class in  minigpt4/models/rec_model.py
   loss_config:
     alpha: 0.1  #recommend
     beta: 0.9   #speaking
@@ -38,42 +36,50 @@ model:
     target_modules: ["q_proj", "v_proj"] # ['lm_head'] ##["lm_head"] # ['lm_head'] ['lm_head'] #
     dropout: 0.05
   rec_config:
+    dataset: ml1m
+    gcn_layers: 2
+    keep_prob: 0.6
+    A_n_fold: 100
+    A_split: False
+    dropout: False
+    pretrain: 0
+    init_emb: 1e-1
     user_num: -100
     item_num: -100
-    embedding_size: 256
+    embedding_size: 64
+    embed_size: 64
     pretrained_path: /data/yuqihang/result/CoLLM/checkpoints/mf/0228_booknew_best_model_d256_lr0.001_wd1e-06.pth
     
 
   
-  ckpt: ['/data/yuqihang/result/CoLLM/reproduce/20250405141/adapter_auc_uauc']
-  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250405141/checkpoint_bestauc_uauc.pth #total data lora path
-
-
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250409024/checkpoint_bestauc.pth
+  ckpt: ['/data/yuqihang/result/CoLLM/reproduce/20250411040/adapter_auc_uauc']
+  
 datasets:
   amazon_ood:
     path: /data/yuqihang/datasets/collm-datasets/bookdu/
     data_type: default
     build_info:
       seq_len: 10
-      cans_num: 1
-      use_ids: False
+      user2group: ''
+      use_ids: True
       use_desc: True
-      storage: /home/yuqihang/projects/CoLLM/collm-datasets/bookdu/grouped_5/group_0/
+      storage: /data/yuqihang/datasets/collm-datasets/bookdu/
 
 run:
   task: rec_pretrain
   # optimizer
   lr_sched: "linear_warmup_cosine_lr"  # "linear_warmup_step_lr"
-  init_lr: 1e-5
+  init_lr: 1e-3
   min_lr: 8e-5
-  warmup_lr: 1e-6
+  warmup_lr: 1e-5
   # init_lr: 3e-5
   # min_lr: 1e-5
   # warmup_lr: 1e-6
   mode: 'v3'
 
   weight_decay: 1e-3 #0.05
-  max_epoch: 20
+  max_epoch: 50
   iters_per_epoch: 800 #100 #50 #200
   batch_size_train: 1 #48
   batch_size_eval: 2 #48

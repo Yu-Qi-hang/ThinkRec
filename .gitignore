@@ -1,7 +1,5 @@
-cakekv/
-Quest/
+dependency/
 collm-datasets
-FastChat/
 *.pyc
 reason*.txt
 *lens.txt

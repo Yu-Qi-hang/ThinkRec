@@ -1,73 +1,66 @@
-# echo "generate configuration yaml";
-# python replace_yaml.py --ckptdir $2;
+gpu=$1
+port=$2
+stragety=$3
+stage=$4
+data=$5
+model_dir=$6
+# user2group=$7
+if [ -z "$7" ];then
+    user2group="none"
+else
+    user2group=$7
+fi
+echo $user2group
+mfdir=/data/yuqihang/result/CoLLM/checkpoints/mf
+if [[ $data == *'yelp'* ]]; then
+    mf_model=$(ls ${mfdir}/*.pth|grep yelp|grep '04')
+elif [[ $data == *'toy'* ]]; then
+    mf_model=$(ls ${mfdir}/*.pth|grep toy|grep '04')
+elif [[ $data == *'ml1m'* ]]; then
+    mf_model=$(ls ${mfdir}/*.pth|grep ml1m|grep '04')
+elif [[ $data == *'beauty'* ]]; then
+    mf_model=$(ls ${mfdir}/*.pth|grep beauty|grep '04')
+else
+    mf_model=$(ls ${mfdir}/*.pth|grep book|grep '04')
+fi
 
-# echo "auc eval";
-# ln -s $2/checkpoint_bestauc.pth $2/checkpoint_best.pth ;
-# echo "Reflect" >> $2/checkpoint_bestauc.txt;
-# CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval1.yaml >> $2/checkpoint_bestauc.txt 2>&1 ;
-# cat $2/checkpoint_best.txt >> $2/checkpoint_bestauc.txt;
-# rm $2/checkpoint_best.txt;
-# python /home/yuqihang/projects/tools/Mailbox.py --message auc reflect;
-# echo "Forward" >> $2/checkpoint_bestauc.txt;
-# CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval2.yaml >> $2/checkpoint_bestauc.txt 2>&1;
-# rm $2/checkpoint_best.pth;
-# python /home/yuqihang/projects/tools/Mailbox.py --message auc forward;
+if [[ $stragety == *'tallrec'* ]]; then
+use_ids=False
+use_desc=False
+prompt_path=prompts/tallrec_amazon_.txt
+generate_config=False
+model_dir='['$6/adapter_auc_uauc']'
+elif [[ $stragety == *'collm'* ]]; then
+use_ids=False
+use_desc=False
+prompt_path=prompts/collm_amazon_.txt
+generate_config=False
+model_dir=$6/auc_uauc
+elif [[ $stragety == *'both'* ]]; then
+use_ids=True
+use_desc=True
+prompt_path=prompts/collm_amazon_.txt
+generate_config=False
+model_dir=$6/auc_uauc
+elif [[ $stragety == *'reason'* ]]; then
+use_ids=True
+use_desc=True
+prompt_path=prompts/reflection_amazon.txt
+generate_config=True
+model_dir=$6/auc_uauc
+fi
 
-# echo "both eval"
-# ln -s $2/checkpoint_bestauc_uauc.pth $2/checkpoint_best.pth ;
-# echo "Reflect" >> $2/checkpoint_bestauc_uauc.txt;
-# CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval1.yaml >> $2/checkpoint_bestauc_uauc.txt 2>&1;
-# cat $2/checkpoint_best.txt >> $2/checkpoint_bestauc_uauc.txt;
-# rm $2/checkpoint_best.txt;
-# python /home/yuqihang/projects/tools/Mailbox.py --message both reflect;
-# echo "Forward" >> $2/checkpoint_bestauc_uauc.txt;
-# CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval2.yaml >> $2/checkpoint_bestauc_uauc.txt 2>&1;
-# rm $2/checkpoint_best.pth;
-# python /home/yuqihang/projects/tools/Mailbox.py --message both forward;
-
-# echo "uauc eval"
-# ln -s $2/checkpoint_bestuauc.pth $2/checkpoint_best.pth ;
-# echo "Reflect" >> $2/checkpoint_bestuauc.txt;
-# CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval1.yaml >> $2/checkpoint_bestuauc.txt 2>&1;
-# cat $2/checkpoint_best.txt >> $2/checkpoint_bestuauc.txt;
-# rm $2/checkpoint_best.txt;
-# python /home/yuqihang/projects/tools/Mailbox.py --message uauc reflect;
-# echo "Forward" >> $2/checkpoint_bestuauc.txt;
-# CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval2.yaml >> $2/checkpoint_bestuauc.txt 2>&1;
-# rm $2/checkpoint_best.pth;
-# python /home/yuqihang/projects/tools/Mailbox.py --message uauc forward;
-
-echo "generate configuration yaml";
-
-echo "auc eval";
-python replace_yaml.py --ckptdir $2 --tag auc --mode 1;
-echo "Reflect" >> $2/checkpoint_bestauc.txt;
-CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval1.yaml >> $2/checkpoint_bestauc.txt 2>&1 ;
-cat $2/auc.txt >> $2/checkpoint_bestauc.txt;
-rm $2/auc.txt;
-python /home/yuqihang/projects/tools/Mailbox.py --message auc reflect;
-echo "Forward" >> $2/checkpoint_bestauc.txt;
-CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval2.yaml >> $2/checkpoint_bestauc.txt 2>&1;
-python /home/yuqihang/projects/tools/Mailbox.py --message auc forward;
-
-echo "both eval"
-python replace_yaml.py --ckptdir $2 --tag auc_uauc --mode 1;
-echo "Reflect" >> $2/checkpoint_bestauc_uauc.txt;
-CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval1.yaml >> $2/checkpoint_bestauc_uauc.txt 2>&1 ;
-cat $2/auc_uauc.txt >> $2/checkpoint_bestauc_uauc.txt;
-rm $2/auc_uauc.txt;
-python /home/yuqihang/projects/tools/Mailbox.py --message auc_uauc reflect;
-echo "Forward" >> $2/checkpoint_bestauc_uauc.txt;
-CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval2.yaml >> $2/checkpoint_bestauc_uauc.txt 2>&1;
-python /home/yuqihang/projects/tools/Mailbox.py --message auc_uauc forward;
-
-echo "uauc eval"
-python replace_yaml.py --ckptdir $2 --tag uauc --mode 1;
-echo "Reflect" >> $2/checkpoint_bestuauc.txt;
-CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval1.yaml >> $2/checkpoint_bestuauc.txt 2>&1 ;
-cat $2/uauc.txt >> $2/checkpoint_bestuauc.txt;
-rm $2/uauc.txt;
-python /home/yuqihang/projects/tools/Mailbox.py --message uauc reflect;
-echo "Forward" >> $2/checkpoint_bestuauc.txt;
-CUDA_VISIBLE_DEVICES=$1 WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=11189 train_collm_mf_din.py  --cfg-path train_configs/myconfig/reason_mf_book_eval2.yaml >> $2/checkpoint_bestuauc.txt 2>&1;
-python /home/yuqihang/projects/tools/Mailbox.py --message uauc forward;
+if [[ $stage == 'eval' ]];then
+testdata=\[test_small\]
+max_len=16
+batch_size_eval=4
+eval_text=False
+elif [[ $stage == 'test' ]];then
+testdata=\[test_tiny\]
+generate_config=True
+max_len=512
+batch_size_eval=2
+eval_text=True
+fi
+echo $testdata $data $stragety $model_dir
+CUDA_VISIBLE_DEVICES=$gpu WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=$port train_collm_mf_din.py  --cfg-path train_configs/new/reason_mf_eval.yaml --options model.generate_config.enable $generate_config model.generate_config.max_len $max_len model.prompt_path $prompt_path model.rec_config.pretrained_path $mf_model model.ckpt $model_dir datasets.amazon_ood.path $data/ datasets.amazon_ood.build_info.use_ids $use_ids datasets.amazon_ood.build_info.use_desc $use_desc datasets.amazon_ood.build_info.storage $data/ run.test_splits $testdata run.batch_size_eval $batch_size_eval run.eval_text $eval_text datasets.amazon_ood.build_info.user2group $user2group

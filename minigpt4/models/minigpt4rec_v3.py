@@ -11,7 +11,7 @@ import os
 
 from minigpt4.common.registry import registry
 from minigpt4.models.rec_model import Rec2Base, disabled_train
-from transformers import LlamaTokenizer, GenerationConfig, AutoTokenizer, AutoConfig
+from transformers import AutoTokenizer, AutoConfig, LlamaForCausalLM, AutoModelForCausalLM
 import re
 import numpy as np
 import pandas as pd
@@ -69,9 +69,6 @@ class MiniGPT4Rec_v3(Rec2Base):
         pretrained_rec=None,
         freeze_rec=True,
         rec_precision='fp16',
-        infer_type='native',
-        quest_config=None,
-        cake_config=None,
         llama_model="",
         prompt_path="",
         prompt_template="",
@@ -92,8 +89,6 @@ class MiniGPT4Rec_v3(Rec2Base):
         # self.tokenizer = self.init_tokenizer()
         self.low_resource = low_resource
         self.proj_token_num = proj_token_num
-        self.use_quest = False
-        self.use_cake = False
 
         print("runing MiniGPT4Rec_v3 ...... ")
 
@@ -117,9 +112,7 @@ class MiniGPT4Rec_v3(Rec2Base):
             print("freeze rec encoder")
 
         print('Loading Rec_model Done')
-
             
-
         print('Loading LLAMA')
         if "Qwen" in llama_model:
             self.llama_tokenizer = AutoTokenizer.from_pretrained(llama_model, trust_remote_code=True)
@@ -130,33 +123,6 @@ class MiniGPT4Rec_v3(Rec2Base):
             self.llama_tokenizer.pad_token = self.llama_tokenizer.eos_token
             if self.llama_tokenizer.unk_token is None:
                 self.llama_tokenizer.add_special_tokens({"unk_token":"<unk>"})
-
-        
-        if infer_type == 'quest' and quest_config is not None:
-            from quest import LlamaForCausalLM
-            self.use_quest = True
-            attn_implementation=None
-
-        elif infer_type == 'cake' and cake_config is not None:
-            self.use_cake = True
-            from cake.model.modeling_llama import LlamaForCausalLM
-            from cake.cake_cache import CakeprefillKVCache
-            from cake.utils import CompressConfig
-            from cake.monkeypatch import replace_flashllama_attn_with_cakeattn
-
-            compress = cake_config.compress
-            cascading = cake_config.cascading
-            compress_config = CompressConfig(compress, cascading)
-            compress_config.cache_size = cake_config.cache_size
-            compress_config.window_size = cake_config.window_size
-            # hyper = [1.6, 0.4, 200.0]
-            compress_config.hyper = [cake_config.tau1, cake_config.tau2, cake_config.gamma]
-
-            replace_flashllama_attn_with_cakeattn()
-            attn_implementation="flash_attention_2"
-        else:
-            from transformers import LlamaForCausalLM
-            attn_implementation=None
 
         if self.low_resource:
             self.llama_model = LlamaForCausalLM.from_pretrained(
@@ -169,29 +135,7 @@ class MiniGPT4Rec_v3(Rec2Base):
             self.llama_model = LlamaForCausalLM.from_pretrained(
                 llama_model,
                 torch_dtype=torch.float16,
-                attn_implementation=attn_implementation
             )
-
-        if self.use_cake:
-            model_config = AutoConfig.from_pretrained(llama_model)
-            layers = model_config.num_hidden_layers
-            for i in range(layers):
-                self.llama_model.model.layers[i].self_attn.config.key_size = [compress_config.cache_size - compress_config.window_size]*layers
-                self.llama_model.model.layers[i].self_attn.config.window_size = [compress_config.window_size]*layers
-                self.llama_model.model.layers[i].self_attn.config.prefill = [True]*layers
-                self.llama_model.model.layers[i].self_attn.config.decoding_evict = [None]*layers
-                self.llama_model.model.layers[i].self_attn.config.tau1 = compress_config.hyper[0]
-                self.llama_model.model.layers[i].self_attn.config.tau2 = compress_config.hyper[1] 
-                self.llama_model.model.layers[i].self_attn.config.gamma = compress_config.hyper[2] 
-                self.llama_model.model.layers[i].self_attn.config.prefill_cake_evict = [CakeprefillKVCache(
-                    cache_size=compress_config.cache_size,
-                    window_size=compress_config.window_size,
-                    k_seq_dim=2,
-                    v_seq_dim=2,
-                    num_heads=self.llama_model.model.layers[i].self_attn.num_heads,
-                    num_layers=layers,
-                    use_cascading=compress_config.cascading
-                )]*layers
 
         for name, param in self.llama_model.named_parameters():
             param.requires_grad = False
@@ -211,7 +155,7 @@ class MiniGPT4Rec_v3(Rec2Base):
             )
             self.llama_model_lora = get_peft_model(self.llama_model, peft_config)
             print("Setting Lora Done")
-        
+
         if freeze_lora:
             print("freeze lora...")
             try:
@@ -226,13 +170,6 @@ class MiniGPT4Rec_v3(Rec2Base):
                         param.requires_grad = True
                         continue
                 param.requires_grad = False
-
-        if self.use_quest:
-            print("Setting Quest")
-            self.llama_model.quest_init(page_size=quest_config.page_size, max_seq_len=quest_config.max_seq_len, token_budget=quest_config.token_budget)
-            if self.use_lora:
-                self.llama_model_lora.quest_init(page_size=quest_config.page_size, max_seq_len=quest_config.max_seq_len, token_budget=quest_config.token_budget)
-            print("Setting Quest Done")
         
         if self.rec_encoder is not None and 'prompt' not in rec_model:
             print("proj_mid:", type(proj_mid), proj_mid)
@@ -264,11 +201,25 @@ class MiniGPT4Rec_v3(Rec2Base):
         self.max_txt_len = max_txt_len
         self.end_sym = end_sym
         self.has_print_prompt=False
-
+        if 'toy' in pretrained_rec:
+            data_types = 'toys or games'
+            data_type = 'toy or game'
+        elif 'ml1m' in pretrained_rec:
+            data_types = 'movies'
+            data_type = 'movie'
+        elif 'beauty' in pretrained_rec:
+            data_types = 'beauty'
+            data_type = 'beauty'
+        elif 'yelp' in pretrained_rec:
+            data_types = 'businesses'
+            data_type = 'business'
+        else:
+            data_types = 'books'
+            data_type = 'book'
         if prompt_path:
             with open(prompt_path, 'r') as f:
                 raw_prompts = f.read().splitlines()
-            filted_prompts = [raw_prompt for raw_prompt in raw_prompts]
+            filted_prompts = [raw_prompt.replace('books',data_types).replace('book',data_type) for raw_prompt in raw_prompts]
             self.prompt_list = [prompt_template.format(p) for p in filted_prompts]
             print('Load {} training prompts'.format(len(self.prompt_list)))
             print('Prompt List: \n{}'.format(self.prompt_list))
@@ -311,6 +262,8 @@ class MiniGPT4Rec_v3(Rec2Base):
             self.user2group['user_id'] = self.user2group['user_id'].astype(int)
             self.user2group['group_id'] = self.user2group['group_id'].astype(int)
             print('set user2group done!!!')
+        else:
+            print('user2group not found!!!')
 
     def to_be_trained(self):
         if self.use_lora:
@@ -378,7 +331,7 @@ class MiniGPT4Rec_v3(Rec2Base):
 
         if self.reason:
             text = samples["reason"]
-            # print("reason:",text)
+            # print("reason:",len(text[0].split()))
         else:
             text = [ans_[int(t)] for t in samples["label"]]
 
@@ -387,7 +340,7 @@ class MiniGPT4Rec_v3(Rec2Base):
             return_tensors="pt",
             padding="longest",
             truncation=True,
-            max_length=self.max_txt_len,
+            max_length=self.max_txt_len//5,
             add_special_tokens=False
         ).to(device)
 
@@ -433,17 +386,9 @@ class MiniGPT4Rec_v3(Rec2Base):
 
     def generate_for_samples_v3(self, samples, return_all=False):
         ret = {}
-        # sample = samples["image"]
-        user_selective_prompts = False
-        if hasattr(samples, 'question_split'):  # VQA dataset
-            print('VQA Batch')
-            raise NotImplementedError("not implement")
-            # vqa_prompt = '###Human: <Img><ImageHere></Img> '
-            # img_embeds, atts_img = self.prompt_wrap(img_embeds, atts_img, vqa_prompt)
-        elif self.prompt_list:
-            prompt = self.prompt_list[0]
-            # sample_embeds, sample_atts, reflect_embeds, reflect_atts = self.prompt_based_encode_v3(prompt,samples,True)
-            sample_embeds, sample_atts = self.prompt_based_encode_v3(prompt,samples,False)
+        prompt = self.prompt_list[0]
+        # sample_embeds, sample_atts, reflect_embeds, reflect_atts = self.prompt_based_encode_v3(prompt,samples,True)
+        sample_embeds, sample_atts = self.prompt_based_encode_v3(prompt,samples,False)
 
         self.llama_tokenizer.padding_side = "right"
 
@@ -458,7 +403,7 @@ class MiniGPT4Rec_v3(Rec2Base):
                 return_tensors="pt",
                 padding="longest",
                 truncation=True,
-                max_length=self.max_txt_len,
+                max_length=32,
                 add_special_tokens=False
             ).to(device)
             t_posi = to_regress_tokens.input_ids.shape[-1] + 1
@@ -479,6 +424,7 @@ class MiniGPT4Rec_v3(Rec2Base):
             if group_id != current_adapter:
                 print(f'switch to {group_id}')
                 self.llama_model_lora.set_adapter(group_id)
+                # self.llama_model_lora.add_weighted_adapter()
 
         with self.maybe_autocast():
             if self.eval_only:
@@ -496,14 +442,6 @@ class MiniGPT4Rec_v3(Rec2Base):
                     use_cache=True,
                     output_logits=True,
                 )
-                if self.use_quest:
-                    self.llama_model_lora.quest_clear()
-                if self.use_cake:
-                    layers = len(self.llama_model_lora.base_model.model.model.layers)
-                    for i in range(layers):
-                        self.llama_model_lora.base_model.model.model.layers[i].self_attn.config.prefill = [True]*layers
-                        self.llama_model_lora.base_model.model.model.layers[i].self_attn.config.decoding_evict = [None]*layers
-
             else:
                 outputs = self.llama_model_lora(
                     inputs_embeds=inputs_embeds,
@@ -522,8 +460,8 @@ class MiniGPT4Rec_v3(Rec2Base):
             ret['reason_text'] = reason_text
             #存储生成的文本
             print(samples['label'].cpu().tolist(),file=open(self.generete_file,'a'))
+            # print('\n'.join(['. '.join(ana.replace('\n',' ').split('. ')[:-1]) for ana in sample_embeds]),file=open(self.generete_file,'a'))
             print('\n'.join(['. '.join(ana.replace('\n',' ').split('. ')[:-1]) for ana in reason_text]),file=open(self.generete_file,'a'))
-            # print('\n'.join([ana.replace('\n',' ') for ana in self.llama_tokenizer.batch_decode(**outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)]),file=open(self.generete_file,'a'))
             logits_ = torch.stack(outputs.logits, dim=1)[:,0,:][:,pos_ans_id]
         else:
             logits_ = outputs.logits[:,-t_posi,:][:,pos_ans_id]
@@ -552,32 +490,6 @@ class MiniGPT4Rec_v3(Rec2Base):
             if logit != labels[idx]:
                 self.wrong_data += 1
                 print(f'{UserID[idx]}\sep{TargetItemID[idx]}\sep{list(InteractedItemIDs_pad[idx][-InteractedNum[idx]:])}\sep{labels[idx]}\sep{list(InteractedItemLabels[idx][-InteractedNum[idx]:])}\sep{InteractedItemTitles[idx]}\sep{TargetItemTitle[idx]}',file=open(self.wrong_dir,'a'))
-
-
-    def decode_logits_to_text(self, logits, t_posi=None):
-        # 对最后一个维度进行softmax操作
-        probs = F.softmax(logits, dim=-1)  # shape: [batch_size, sequence_length, vocab_size]
-        
-        # 获取每个位置上概率最大的token ID
-        predicted_token_ids = torch.argmax(probs, dim=-1)  # shape: [batch_size, sequence_length]
-        
-        # Step 2: 使用tokenizer将token ID转换为文本
-        decoded_texts = []
-        for batch_idx in range(predicted_token_ids.shape[0]):
-            # 获取当前样本的 token IDs
-            token_ids = predicted_token_ids[batch_idx].tolist()
-            
-            # 如果只需要解码特定位置的token，可以只取该位置的token ID
-            if t_posi is not None:
-                token_ids = [token_ids[-t_posi]]
-            
-            # 使用 tokenizer 解码 token IDs
-            decoded_text = self.llama_tokenizer.decode(token_ids, skip_special_tokens=True)
-            
-            # 添加到结果列表中
-            decoded_texts.append(decoded_text)
-        
-        return decoded_texts
 
     def prompt_based_encode_v3(self, prompt, samples, reflect=False):
         id_orders = get_ids_order(prompt)
@@ -637,7 +549,7 @@ class MiniGPT4Rec_v3(Rec2Base):
                 idx_flag = [idx_flag[k] for k in ids_order]
                 idx_flag = torch.cat(idx_flag,dim=1).to(device)
                 idx_nopad = torch.nonzero(idx_flag)
-                
+                # print(sample['InteractedItemIDs_pad'],idx_flag,idx_nopad,file=open('letmesee.txt','a'))
                 sample_embeds_llama = {
                     'User_emb': user_embeds_llama.reshape(batch_size,-1, hidden_size),
                     'TargetItem_emb': targetItem_embeds_llama.reshape(batch_size,-1, hidden_size),
@@ -753,10 +665,10 @@ class MiniGPT4Rec_v3(Rec2Base):
                 else:
                     pass
             except:
-                print(replaced_idx.shape[0],'sample',samples['User_emb'].shape[0],samples['TargetItem_emb'].shape[0])
+                print(replaced_idx.shape[0],'sample',samples['User_emb'].shape[0],samples['TargetItem_emb'].shape[0],ori_samples['InteractedNum'],ori_samples['InteractedItemIDs_pad'])
                 if samples['merged_embs'] is not None:
                     print(samples['merged_embs'].shape)
-                print("#######prmpt decoded example: ",' '.join(self.llama_tokenizer.batch_decode(prompts_tokens.input_ids[0])))
+                print("#######prmpt decoded example: ",prompt_list)
             # input_embeds = torch.cat([prompt_embeds, answer_embeds], dim=-2)
             # attention_mask = torch.cat([prompts_tokens.attention_mask, answer_tokens.attention_mask], dim=-1)
             # labels = torch.cat([torch.full_like(prompts_tokens.input_ids, -100), answer_tokens.input_ids.masked_fill(answer_tokens.input_ids == self.llama_tokenizer.pad_token_id, -100)], dim=-1)
@@ -1351,28 +1263,16 @@ class MiniGPT4Rec_v3(Rec2Base):
 
         rec_model = cfg.get('rec_model',"MF")
         rec_config = cfg.rec_config
-        embedding_size = cfg.get("rec_emb_size")
         freeze_rec = cfg.get("freeze_rec",True)
         rec_precision = cfg.get("rec_precision", 'fp16')
         rec_config = cfg.get("rec_config")
         lora_config = cfg.get("lora_config")
         loss_config = cfg.get("loss_config", None)
-        quest_config = cfg.get("quest_config", None)
-        cake_config = cfg.get("cake_config", None)
         llama_model = cfg.get("llama_model")
         proj_token_num = cfg.get("proj_token_num")
         proj_mid = cfg.get("proj_mid_times")
         freeze_proj = cfg.get("freeze_proj")
         freeze_lora = cfg.get("freeze_lora")
-        infer_type = cfg.get("infer_type", "native")
-
-
-        # drop_path_rate = cfg.get("drop_path_rate", 0)
-        # use_grad_checkpoint = cfg.get("use_grad_checkpoint", False)
-        # vit_precision = cfg.get("vit_precision", "fp16")
-        # freeze_vit = cfg.get("freeze_vit", True)
-        # freeze_qformer = cfg.get("freeze_qformer", True)
-
 
         low_resource = cfg.get("low_resource", False)
         device_8bit = cfg.get("device_8bit", 0)
@@ -1389,9 +1289,6 @@ class MiniGPT4Rec_v3(Rec2Base):
             pretrained_rec = rec_config['pretrained_path'],
             freeze_rec=freeze_rec,
             rec_precision=rec_precision,
-            infer_type=infer_type,
-            quest_config=quest_config,
-            cake_config=cake_config,
             llama_model=llama_model,
             prompt_path=prompt_path,
             prompt_template=prompt_template,
@@ -1399,7 +1296,7 @@ class MiniGPT4Rec_v3(Rec2Base):
             end_sym=end_sym,
             low_resource=low_resource,
             device_8bit=device_8bit,
-            proj_token_num = cfg.get("proj_token_num"),
+            proj_token_num = proj_token_num,
             proj_drop = cfg.get("proj_drop"),
             lora_config = lora_config,
             loss_config = loss_config,
@@ -1423,17 +1320,26 @@ class MiniGPT4Rec_v3(Rec2Base):
             else: #eval
                 tag = ckpt_path.split('/')[-1]
                 ckpt_path = '/'.join(ckpt_path.split('/')[:-1])
-                # models_name = os.listdir(ckpt_path)
-                model.load_state_dict(torch.load(os.path.join(ckpt_path,f"project_model_{tag}.pth"), map_location="cpu"), strict=False)
-                adapters = os.listdir(os.path.join(ckpt_path,"lora_adapter"))
-                for adapter in adapters:
-                    if 'group' not in adapter:
-                        continue
-                    model.llama_model_lora.load_adapter(os.path.join(ckpt_path,"lora_adapter",adapter), adapter_name=adapter)
+                proj_name = os.path.join(ckpt_path,f"project_model_{tag}.pth")
+                if os.path.exists(proj_name):
+                    model.load_state_dict(torch.load(proj_name, map_location="cpu"), strict=False)
+                    print("loading proj")
+                else:
+                    print("no proj")
+                lora_dir = os.path.join(ckpt_path,"lora_adapter")
+                if os.path.exists(lora_dir):
+                    adapters = os.listdir(lora_dir)
+                    for adapter in adapters:
+                        if 'group' not in adapter:
+                            continue
+                        model.llama_model_lora.load_adapter(os.path.join(ckpt_path,"lora_adapter",adapter), adapter_name=adapter)
+                else:# only one adapter
+                    adapters = [os.path.join(ckpt_path,f"adapter_{tag}")]
+                    model.llama_model_lora.load_adapter(adapters[0], adapter_name="group0", is_trainable= not freeze_lora)
                 model.llama_model_lora.set_adapter("group0")
                 if len(adapters)>1:
                     model.set_user2group(user2group)
-                print("loading adapters and proj")
+                print(f"loading {len(adapters)} adapters")
         elif ckpt_path is not None:#stage2,一个也可以
             print('loading adapters')
             is_trainable = False
@@ -1441,13 +1347,25 @@ class MiniGPT4Rec_v3(Rec2Base):
                 is_trainable = not freeze_lora
             else:
                 is_trainable = freeze_lora.get('layers',False)!=False
-            print("istrainable???????",is_trainable)
             for idx,adapter in enumerate(ckpt_path):
                 model.llama_model_lora.load_adapter(adapter, adapter_name=f"group{idx}",is_trainable=is_trainable)
             model.llama_model_lora.set_adapter("group0")
             if len(ckpt_path)>1:
                 model.set_user2group(user2group)
-
+        if freeze_lora:
+            print("freeze lora...")
+            try:
+                flexible_layer_num = freeze_lora.layers
+                flexible_layers = range(32-flexible_layer_num,32)
+            except:
+                flexible_layers = None
+            for name, param in model.llama_model_lora.named_parameters():
+                if flexible_layers and 'layers' in name and 'lora_' in name:
+                    layer_id = int(re.search(r'\.layers\.([^.]+)', name).group(1))
+                    if layer_id in flexible_layers:
+                        param.requires_grad = True
+                        continue
+                param.requires_grad = False
         # reload the rec model, avoiding it be covered by the loaded ckpt
         if os.path.exists(rec_config['pretrained_path']) and freeze_rec:
             model.rec_encoder.load_state_dict(torch.load(rec_config['pretrained_path'], map_location="cpu"))

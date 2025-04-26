@@ -30,9 +30,6 @@ from minigpt4.runners import *
 from minigpt4.tasks import *
 from torch.distributed.elastic.multiprocessing.errors import *
 
-
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Training")
 
@@ -94,28 +91,29 @@ def main():
     task = tasks.setup_task(cfg)
     datasets = task.build_datasets(cfg)
     # cfg.model_cfg.get("user_num", "default")
-    data_name = list(datasets.keys())[0]
+    # data_name = list(datasets.keys())[0]
     # data_dir = "/home/sist/zyang/LLM/datasets/ml-1m/"
     try: #  movie
         data_dir = cfg.datasets_cfg.movie_ood.path
-        n_clusters = cfg.datasets_cfg.movie_ood.build_info.storage
     except: # amazon
         data_dir = cfg.datasets_cfg.amazon_ood.path
-        n_clusters = cfg.datasets_cfg.amazon_ood.build_info.storage
     print("data dir:", data_dir)
     # data_dir = "/data/zyang/datasets/ml-1m/"
+    cfg.model_cfg.user2group = None
+    if cfg.run_cfg.evaluate: #split table needed only evaluate step
+        ckpt = cfg.model_cfg.ckpt
+        if isinstance(ckpt,str):
+            lora_adapter = os.path.join('/'.join(ckpt.split('/')[:-1]),'lora_adapter')
+            if os.path.exists(lora_adapter):
+                n_clusters = len(os.listdir(lora_adapter))
+                if n_clusters > 1:
+                    cfg.model_cfg.user2group = os.path.join(data_dir,f'mf_user_group_{n_clusters}.csv')
+
     train_ = pd.read_pickle(data_dir+"train_ood2.pkl")
     valid_ = pd.read_pickle(data_dir+"valid_ood2.pkl")
     test_ = pd.read_pickle(data_dir+"test_ood2.pkl")
     user_num = max(train_.uid.max(),valid_.uid.max(),test_.uid.max())+1
     item_num = max(train_.iid.max(),valid_.iid.max(),test_.iid.max())+1
-
-    n_clusters = n_clusters.strip('/').split('/')[-2]
-    if 'grouped_' in n_clusters:
-        n_clusters = int(n_clusters.split('_')[-1])
-        cfg.model_cfg.user2group = os.path.join(data_dir,f'user_group{n_clusters}.csv')
-    else:
-        cfg.model_cfg.user2group = os.path.join(data_dir,'user_group.csv')
     cfg.model_cfg.rec_config.user_num = int(user_num) #int(datasets[data_name]['train'].user_num)  #cfg.model_cfg.get("user_num",)
     cfg.model_cfg.rec_config.item_num = int(item_num) #int(datasets[data_name]['train'].item_num) #cfg.model_cfg.get("item_num", datasets[data_name]['train'].item_num)
     cfg.pretty_print()

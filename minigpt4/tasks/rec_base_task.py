@@ -57,7 +57,7 @@ import evaluate
 def calculate_ttr(text):
     tokens = text.split()
     if len(tokens) == 0:
-        return 0
+        return 0,0
     unique_tokens = set(tokens)
     return len(unique_tokens) / len(tokens), len(re.findall(r'\b\w+\b', text.lower()))
 
@@ -87,6 +87,10 @@ def calculate_ngram_entropy(text, n=1, smooth=True):
 
 
 def reorganize_by_user(user, predict, label):
+    if not isinstance(predict,np.ndarray):
+        predict = np.array(predict)
+    if not isinstance(label,np.ndarray):
+        label = np.array(label)
     predict = predict.squeeze()
     label = label.squeeze()
     u, inverse, counts = np.unique(user,return_inverse=True,return_counts=True) # sort in increasing
@@ -465,6 +469,11 @@ class RecBaseTask(BaseTask):
         k = 0
         use_auc = False
         eval_times = []
+        metric_logger.update(TTR=-1e-7)
+        metric_logger.update(PPL=-1e-7)
+        metric_logger.update(ngram2=-1e-7)
+        metric_logger.update(ngram3=-1e-7)
+        metric_logger.update(ngram4=-1e-7)
         for data_loader in data_loaders.loaders:
             results_logits = []
             labels = []
@@ -489,16 +498,18 @@ class RecBaseTask(BaseTask):
                     metric_logger.update(acc=acc.item())
                 else:
                     metric_logger.update(acc=0)
-                
+
                 if 'reason_text' in eval_output.keys() and eval_text:
                     if perplexity is None:
-                        perplexity = evaluate.load("/home/yuqihang/projects/evaluate/metrics/perplexity", module_type="metric")
+                        perplexity = evaluate.load("minigpt4/tasks/perplexity.py", module_type="metric")
                     reason_text = eval_output['reason_text']
                     total_valid += samples['label'].shape[0]
                     #PPL
-                    results = perplexity.compute(model_id=(model.llama_model_lora, model.llama_tokenizer),add_start_token=False,predictions=reason_text,max_length=1024)
-                    # results = perplexity.compute(model_id='gpt2',add_start_token=False,predictions=reason_text,max_length=1024)
-                    metric_logger.update(PPL=results["mean_perplexity"])
+                    try:
+                        results = perplexity.compute(model_id=(model.llama_model_lora, model.llama_tokenizer),add_start_token=False,predictions=reason_text,max_length=1024)
+                        metric_logger.update(PPL=results["mean_perplexity"])
+                    except:
+                        print('perplexity error')
                     #TTR, entropy_ngram
                     for text in reason_text:
                         ttr_score,length = calculate_ttr(text)
@@ -591,5 +602,7 @@ class RecBaseTask(BaseTask):
                 results = {
                     'agg_metrics': -metric_logger.meters['loss'].global_avg,
                 }
-        print("eval_times:(inner 80 iters)", sum(eval_times[40:120])/len(eval_times[40:120]))
+        for_time_cal_start_idx = len(eval_times)//4
+        for_time_cal = eval_times[for_time_cal_start_idx:for_time_cal_start_idx*3]
+        print(f"eval_times:(inner {len(for_time_cal)} iters)", sum(for_time_cal)/len(for_time_cal))
         return results

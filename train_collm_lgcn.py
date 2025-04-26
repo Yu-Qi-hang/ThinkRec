@@ -1,18 +1,13 @@
-"""
- Copyright (c) 2022, salesforce.com, inc.
- All rights reserved.
- SPDX-License-Identifier: BSD-3-Clause
- For full license text, see the LICENSE_Lavis file in the repo root or https://opensource.org/licenses/BSD-3-Clause
-"""
-
-import argparse
 import os
 # import os
+os.environ['TOKENIZERS_PARALLELISM'] = 'False'
 # os.environ['CURL_CA_BUNDLE'] = ''
 # os.environ["CUDA_VISIBLE_DEVICES"]="4"
+import argparse
 import random
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.backends.cudnn as cudnn
 
@@ -88,7 +83,7 @@ def main():
 
     cfg = Config(parse_args())
 
-    init_distributed_mode(cfg.run_cfg)
+    # init_distributed_mode(cfg.run_cfg)
 
     setup_seeds(cfg)
 
@@ -99,28 +94,37 @@ def main():
 
     task = tasks.setup_task(cfg)
     datasets = task.build_datasets(cfg)
-    
-    
     # cfg.model_cfg.get("user_num", "default")
-    data_name = list(datasets.keys())[0]
-    
-
-    gnndata = GnnDataset(cfg.model_cfg.rec_config,cfg.datasets_cfg.movie_ood.path)  #movie_ood (also used for amazon)
+    # data_name = list(datasets.keys())[0]
+    try: #  movie
+        data_dir = cfg.datasets_cfg.movie_ood.path
+    except: # amazon
+        data_dir = cfg.datasets_cfg.amazon_ood.path
+    print("data dir:", data_dir)
+    cfg.model_cfg.user2group = None
+    if cfg.run_cfg.evaluate: #split table needed only evaluate step
+        ckpt = cfg.model_cfg.ckpt
+        if isinstance(ckpt,str):
+            lora_adapter = os.path.join('/'.join(ckpt.split('/')[:-1]),'lora_adapter')
+            if os.path.exists(lora_adapter):
+                n_clusters = len(os.listdir(lora_adapter))
+                if n_clusters > 1:
+                    cfg.model_cfg.user2group = os.path.join(data_dir,f'mf_user_group_{n_clusters}.csv')
+        
+    gnndata = GnnDataset(cfg.model_cfg.rec_config,data_dir)  #movie_ood (also used for amazon)
     cfg.model_cfg.rec_config.user_num =  int(gnndata.m_users)  #cfg.model_cfg.get("user_num",)
     cfg.model_cfg.rec_config.item_num = int(gnndata.n_items) #cfg.model_cfg.get("item_num", datasets[data_name]['train'].item_num)
     cfg.pretty_print()
     
     model = task.build_model(cfg)
-
     
     if cfg.model_cfg.rec_model == 'lightgcn':
         model.rec_encoder._set_graph(gnndata.Graph)
-    
-    
 
     runner = get_runner_class(cfg)(
         cfg=cfg, job_id=job_id, task=task, model=model, datasets=datasets
     )
+    print('start training...')
     runner.train()
 
 

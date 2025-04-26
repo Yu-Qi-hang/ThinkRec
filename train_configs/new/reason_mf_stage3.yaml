@@ -55,7 +55,7 @@ datasets:
     data_type: default
     build_info:
       seq_len: 10
-      cans_num: 1
+      user2group: ''
       use_ids: False
       use_desc: True
       storage: /home/yuqihang/projects/CoLLM/collm-datasets/bookdu/grouped_5/group_0/
@@ -73,7 +73,7 @@ run:
   mode: 'v3'
 
   weight_decay: 1e-3 #0.05
-  max_epoch: 20
+  max_epoch: 40
   iters_per_epoch: 800 #100 #50 #200
   batch_size_train: 1 #48
   batch_size_eval: 2 #48

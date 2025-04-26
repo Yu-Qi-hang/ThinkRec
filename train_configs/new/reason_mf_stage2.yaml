@@ -4,16 +4,14 @@ model:
   freeze_rec: True
   
   #stage1
-  freeze_proj: True #    
-  freeze_lora:
-    enable: True
-    layers: 32
-  prompt_path: "prompts/tallrec_amazon_.txt"
+  # freeze_proj: True # 
+  # freeze_lora: False #
+  # prompt_path: "prompts/tallrec_amazon_.txt"
 
   # #stage2
-  # freeze_proj: True
-  # freeze_lora: True
-  # prompt_path: "prompts/collm_amazon.txt"
+  freeze_proj: False
+  freeze_lora: True
+  prompt_path: "prompts/collm_amazon_.txt"
 
   max_txt_len: 2048
   proj_token_num: 1
@@ -45,35 +43,34 @@ model:
     
 
   
-  ckpt: ['/data/yuqihang/result/CoLLM/reproduce/20250405141/adapter_auc_uauc']
-  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250405141/checkpoint_bestauc_uauc.pth #total data lora path
-
-
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250409024/checkpoint_bestauc.pth
+  ckpt: ['/data/yuqihang/result/CoLLM/reproduce/20250411040/adapter_auc_uauc']
+  
 datasets:
   amazon_ood:
     path: /data/yuqihang/datasets/collm-datasets/bookdu/
     data_type: default
     build_info:
       seq_len: 10
-      cans_num: 1
-      use_ids: False
+      user2group: ''
+      use_ids: True
       use_desc: True
-      storage: /home/yuqihang/projects/CoLLM/collm-datasets/bookdu/grouped_5/group_0/
+      storage: /data/yuqihang/datasets/collm-datasets/bookdu/
 
 run:
   task: rec_pretrain
   # optimizer
   lr_sched: "linear_warmup_cosine_lr"  # "linear_warmup_step_lr"
-  init_lr: 1e-5
+  init_lr: 1e-4
   min_lr: 8e-5
-  warmup_lr: 1e-6
+  warmup_lr: 1e-5
   # init_lr: 3e-5
   # min_lr: 1e-5
   # warmup_lr: 1e-6
   mode: 'v3'
 
   weight_decay: 1e-3 #0.05
-  max_epoch: 20
+  max_epoch: 50
   iters_per_epoch: 800 #100 #50 #200
   batch_size_train: 1 #48
   batch_size_eval: 2 #48

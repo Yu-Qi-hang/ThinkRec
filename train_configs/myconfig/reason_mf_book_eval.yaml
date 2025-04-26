@@ -1,7 +1,7 @@
 model:
   arch: mini_gpt4rec_v3
   model_type: pretrain_vicuna
-  infer_type: "native" # quest, cake
+  infer_type: "native" # native, quest, cake
   quest_config:
     # enable: False
     page_size: 32
@@ -28,7 +28,7 @@ model:
   freeze_lora: True
   generate_config:
     enable: True
-    max_len: 32
+    max_len: 16
   prompt_path: "prompts/reflection_amazon.txt"
   # prompt_path: "prompts/tallrec_amazon_.txt"
   # prompt_path: "prompts/collm_amazon_.txt"

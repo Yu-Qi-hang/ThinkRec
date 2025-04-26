@@ -141,7 +141,7 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
             text_processor=self.text_processors["train"],
             ann_paths=[os.path.join(storage_path, 'train')],
             seq_len=build_info.seq_len,
-            cans_num=build_info.cans_num,
+            user2group=build_info.user2group,
             use_ids=build_info.use_ids,
             use_desc=build_info.use_desc
         )
@@ -151,23 +151,23 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 text_processor=self.text_processors["train"],
                 ann_paths=[os.path.join(storage_path, 'reason')],
                 seq_len=build_info.seq_len,
-                cans_num=build_info.cans_num,
+                user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
                 use_desc=build_info.use_desc
                 )
             except:
-                print(os.path.join(storage_path, 'reason_ood2.pkl'))
+                print("Not existing",os.path.join(storage_path, 'reason_ood2.pkl'))
             try:
                 datasets['valid'] = dataset_cls(
                 text_processor=self.text_processors["train"],
                 ann_paths=[os.path.join(storage_path, 'valid_small')],
                 seq_len=build_info.seq_len,
-                cans_num=build_info.cans_num,
+                user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
                 use_desc=build_info.use_desc
                 )
             except:
-                print(os.path.join(storage_path, 'valid_small'), os.path.exists(os.path.join(storage_path, 'valid_small_seqs.pkl')))
+                print("Not existing",os.path.join(storage_path, 'valid_small'))
         else:
             try:
                 #0915
@@ -175,15 +175,7 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 text_processor=self.text_processors["train"],
                 ann_paths=[os.path.join(storage_path, 'test')],
                 seq_len=build_info.seq_len,
-                cans_num=build_info.cans_num,
-                use_ids=build_info.use_ids,
-                use_desc=build_info.use_desc
-                )
-                datasets['test_small'] = dataset_cls(
-                text_processor=self.text_processors["train"],
-                ann_paths=[os.path.join(storage_path, 'test_small')],
-                seq_len=build_info.seq_len,
-                cans_num=build_info.cans_num,
+                user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
                 use_desc=build_info.use_desc
                 )
@@ -191,7 +183,7 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 text_processor=self.text_processors["train"],
                 ann_paths=[os.path.join(storage_path, 'test_tiny')],
                 seq_len=build_info.seq_len,
-                cans_num=build_info.cans_num,
+                user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
                 use_desc=build_info.use_desc
                 )
@@ -199,7 +191,7 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 text_processor=self.text_processors["train"],
                 ann_paths=[os.path.join(storage_path, 'test=warm')],
                 seq_len=build_info.seq_len,
-                cans_num=build_info.cans_num,
+                user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
                 use_desc=build_info.use_desc
                 )
@@ -207,12 +199,24 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 text_processor=self.text_processors["train"],
                 ann_paths=[os.path.join(storage_path, 'test=cold')],
                 seq_len=build_info.seq_len,
-                cans_num=build_info.cans_num,
+                user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
                 use_desc=build_info.use_desc
                 )
             except:
-                print(os.path.join(storage_path, 'test_ood2.pkl'))
+                print("Not existing",os.path.join(storage_path, 'test_ood2.pkl'))
+            try:
+                datasets['test_small'] = dataset_cls(
+                text_processor=self.text_processors["train"],
+                ann_paths=[os.path.join(storage_path, 'test_small')],
+                seq_len=build_info.seq_len,
+                user2group=build_info.user2group,
+                use_ids=build_info.use_ids,
+                use_desc=build_info.use_desc
+                )
+            except:
+                print("Not existing test_small, test loaded")
+                datasets['test_small'] = datasets['test']
         return datasets
 
 
