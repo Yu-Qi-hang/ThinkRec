@@ -93,10 +93,10 @@ def main():
     # cfg.model_cfg.get("user_num", "default")
     # data_name = list(datasets.keys())[0]
     # data_dir = "/home/sist/zyang/LLM/datasets/ml-1m/"
-    try: #  movie
-        data_dir = cfg.datasets_cfg.movie_ood.path
-    except: # amazon
-        data_dir = cfg.datasets_cfg.amazon_ood.path
+    # try: #  movie
+    #     data_dir = cfg.datasets_cfg.movie_ood.path
+    # except: # amazon
+    data_dir = cfg.datasets_cfg.amazon_ood.path
     print("data dir:", data_dir)
     # data_dir = "/data/zyang/datasets/ml-1m/"
     cfg.model_cfg.user2group = None
@@ -105,9 +105,10 @@ def main():
         if isinstance(ckpt,str):
             lora_adapter = os.path.join('/'.join(ckpt.split('/')[:-1]),'lora_adapter')
             if os.path.exists(lora_adapter):
-                n_clusters = len(os.listdir(lora_adapter))
-                if n_clusters > 1:
-                    cfg.model_cfg.user2group = os.path.join(data_dir,f'mf_user_group_{n_clusters}.csv')
+                cfg.model_cfg.user2group = cfg.datasets_cfg.amazon_ood.build_info.user2group
+                # n_clusters = len(os.listdir(lora_adapter))
+                # if n_clusters > 1:
+                #     cfg.model_cfg.user2group = os.path.join(data_dir,f'mf_user_group_{n_clusters}.csv')
 
     train_ = pd.read_pickle(data_dir+"train_ood2.pkl")
     valid_ = pd.read_pickle(data_dir+"valid_ood2.pkl")
@@ -116,7 +117,7 @@ def main():
     item_num = max(train_.iid.max(),valid_.iid.max(),test_.iid.max())+1
     cfg.model_cfg.rec_config.user_num = int(user_num) #int(datasets[data_name]['train'].user_num)  #cfg.model_cfg.get("user_num",)
     cfg.model_cfg.rec_config.item_num = int(item_num) #int(datasets[data_name]['train'].item_num) #cfg.model_cfg.get("item_num", datasets[data_name]['train'].item_num)
-    cfg.pretty_print()
+    # cfg.pretty_print()
 
     model = task.build_model(cfg)
     runner = get_runner_class(cfg)(

@@ -40,5 +40,5 @@ CUDA_VISIBLE_DEVICES=$gpu WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port
 
 else #stage3
 CUDA_VISIBLE_DEVICES=$gpu WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=$port train_collm_lgcn.py  --cfg-path $cfg_file \
---options model.freeze_lora.layers 32 model.ckpt '['$6']' datasets.amazon_ood.path $data/ datasets.amazon_ood.build_info.storage $7/ run.output_dir $output_dir  model.rec_config.pretrained_path $mf_model model.rec_config.dataset $dataset
+--options model.freeze_lora.layers 8 model.ckpt '['$6']' datasets.amazon_ood.path $data/ datasets.amazon_ood.build_info.storage $7/ run.output_dir $output_dir  model.rec_config.pretrained_path $mf_model model.rec_config.dataset $dataset
 fi

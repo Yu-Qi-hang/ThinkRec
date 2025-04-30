@@ -3,17 +3,20 @@ model:
   model_type: pretrain_vicuna
   freeze_rec: True
   
-  #stage1
-  freeze_proj: True #    
-  freeze_lora:
-    enable: True
-    layers: 32
-  prompt_path: "prompts/tallrec_amazon_.txt"
+  # #stage1
+  # freeze_proj: True #    
+  # freeze_lora: False #
+  # prompt_path: "prompts/tallrec_amazon.txt"
 
-  # #stage2
-  # freeze_proj: True
-  # freeze_lora: True
-  # prompt_path: "prompts/collm_amazon.txt"
+  #stage2
+  freeze_proj: True
+  freeze_lora: True
+  generate_config:
+    enable: True
+    max_len: 16
+  prompt_path: "prompts/reflection_amazon.txt"
+  # prompt_path: "prompts/tallrec_amazon_.txt"
+  # prompt_path: "prompts/collm_amazon_.txt"
 
   max_txt_len: 2048
   proj_token_num: 1
@@ -25,12 +28,7 @@ model:
   user_num: -100
   item_num: -100
   ans_type: 'v2'
-  rec_model: "MF" #[MF, lightgcn,.....], see "Rec2Base" class in  minigpt4/models/rec_model.py
-  loss_config:
-    alpha: 0.1  #recommend
-    beta: 0.9   #speaking
-    theta: 0.9  #recommend
-    gamma: 0.1   #speaking
+  rec_model: "lightgcn" #[MF, lightgcn,.....], see "Rec2Base" class in  minigpt4/models/rec_model.py
   lora_config:
     use_lora: True
     r: 8
@@ -38,15 +36,26 @@ model:
     target_modules: ["q_proj", "v_proj"] # ['lm_head'] ##["lm_head"] # ['lm_head'] ['lm_head'] #
     dropout: 0.05
   rec_config:
+    dataset: ml1m
+    gcn_layers: 2
+    keep_prob: 0.6
+    A_n_fold: 100
+    A_split: False
+    dropout: False
+    pretrain: 0
+    init_emb: 1e-1
     user_num: -100
     item_num: -100
-    embedding_size: 256
+    embedding_size: 64
+    embed_size: 64
     pretrained_path: /data/yuqihang/result/CoLLM/checkpoints/mf/0228_booknew_best_model_d256_lr0.001_wd1e-06.pth
     
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250406154/checkpoint_bestauc_uauc.pth
+  ckpt: /data/yuqihang/result/CoLLM/reproduce/20250406154/auc_uauc # tune
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/add_text/20250314040/checkpoint_best.pth #+label+keywords
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/add_text/20250318125/checkpoint_best.pth #collm
+  # ckpt: /data/yuqihang/result/CoLLM/reproduce/add_text/20250311162/checkpoint_best.pth #tallrec
 
-  
-  ckpt: ['/data/yuqihang/result/CoLLM/reproduce/20250405141/adapter_auc_uauc']
-  # ckpt: /data/yuqihang/result/CoLLM/reproduce/20250405141/checkpoint_bestauc_uauc.pth #total data lora path
 
 
 datasets:
@@ -56,42 +65,42 @@ datasets:
     build_info:
       seq_len: 10
       user2group: ''
-      use_ids: False
+      use_ids: True
       use_desc: True
-      storage: /home/yuqihang/projects/CoLLM/collm-datasets/bookdu/grouped_5/group_0/
+      storage: /data/yuqihang/datasets/collm-datasets/bookdu/
 
 run:
   task: rec_pretrain
   # optimizer
   lr_sched: "linear_warmup_cosine_lr"  # "linear_warmup_step_lr"
-  init_lr: 1e-5
+  init_lr: 1e-4
   min_lr: 8e-5
-  warmup_lr: 1e-6
+  warmup_lr: 1e-5
   # init_lr: 3e-5
   # min_lr: 1e-5
   # warmup_lr: 1e-6
-  mode: 'v3'
+  mode: 'v3' # stage1: v1, 
 
   weight_decay: 1e-3 #0.05
-  max_epoch: 30
+  max_epoch: 1000
   iters_per_epoch: 800 #100 #50 #200
   batch_size_train: 1 #48
-  batch_size_eval: 2 #48
+  batch_size_eval: 4 #48
   num_workers: 2
   warmup_steps: 200 #200
 
   seed: 42
   # output_dir: "output"
-  output_dir: /data/yuqihang/result/CoLLM/reproduce
+  output_dir: /data/yuqihang/result/CoLLM/reproduce/evals
 
   amp: True
   resume_ckpt_path: null
 
-  evaluate: False # False True
-  train_splits: ["reason","train"]
-  train_ratios: [0.2,0.8]
+  evaluate: True # False True
+  eval_text: False
+  train_splits: ["train"]
   valid_splits: ["valid"]
-  test_splits: ["test"]
+  test_splits: [test_small]
   # test_splits: ["test_warm", "test_cold", "test", "valid"]
 
   device: "cuda"

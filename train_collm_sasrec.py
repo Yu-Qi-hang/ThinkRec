@@ -1,18 +1,13 @@
-"""
- Copyright (c) 2022, salesforce.com, inc.
- All rights reserved.
- SPDX-License-Identifier: BSD-3-Clause
- For full license text, see the LICENSE_Lavis file in the repo root or https://opensource.org/licenses/BSD-3-Clause
-"""
-
-import argparse
 import os
 # import os
+os.environ['TOKENIZERS_PARALLELISM'] = 'False'
 # os.environ['CURL_CA_BUNDLE'] = ''
 # os.environ["CUDA_VISIBLE_DEVICES"]="4"
+import argparse
 import random
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.backends.cudnn as cudnn
 
@@ -35,7 +30,6 @@ from minigpt4.processors import *
 from minigpt4.runners import *
 from minigpt4.tasks import *
 from torch.distributed.elastic.multiprocessing.errors import *
-import pandas as pd
 
 
 
@@ -89,7 +83,7 @@ def main():
 
     cfg = Config(parse_args())
 
-    init_distributed_mode(cfg.run_cfg)
+    # init_distributed_mode(cfg.run_cfg)
 
     setup_seeds(cfg)
 
@@ -110,11 +104,24 @@ def main():
         # gnndata = GnnDataset(cfg.model_cfg.rec_config,cfg.datasets_cfg.movielens.path)  #movie_ood
     # gnndata = GnnDataset(cfg.model_cfg.rec_config,cfg.datasets_cfg.movie_ood.path)  #movie_ood
     # data_dir = "/home/sist/zyang/LLM/datasets/ml-1m/"
-    try: #  movie
-        data_dir = cfg.datasets_cfg.movie_ood_sasrec.path
-    except: # amazon
-        data_dir = cfg.datasets_cfg.amazon_ood_sasrec.path
+    # try: #  movie
+    #     data_dir = cfg.datasets_cfg.movie_ood_sasrec.path
+    # except: # amazon
+    #     data_dir = cfg.datasets_cfg.amazon_ood_sasrec.path
+    data_dir = cfg.datasets_cfg.amazon_ood.path
+    print("data dir:", data_dir)
     # data_dir = "/data/zyang/datasets/ml-1m/"
+    cfg.model_cfg.user2group = None
+    if cfg.run_cfg.evaluate: #split table needed only evaluate step
+        ckpt = cfg.model_cfg.ckpt
+        if isinstance(ckpt,str):
+            lora_adapter = os.path.join('/'.join(ckpt.split('/')[:-1]),'lora_adapter')
+            if os.path.exists(lora_adapter):
+                cfg.model_cfg.user2group = cfg.datasets_cfg.amazon_ood.build_info.user2group
+                # n_clusters = len(os.listdir(lora_adapter))
+                # if n_clusters > 1:
+                #     cfg.model_cfg.user2group = os.path.join(data_dir,f'mf_user_group_{n_clusters}.csv')
+
     train_ = pd.read_pickle(data_dir+"train_ood2.pkl")
     valid_ = pd.read_pickle(data_dir+"valid_ood2.pkl")
     test_ = pd.read_pickle(data_dir+"test_ood2.pkl")
@@ -130,6 +137,7 @@ def main():
     runner = get_runner_class(cfg)(
         cfg=cfg, job_id=job_id, task=task, model=model, datasets=datasets
     )
+    print('start training...')
     runner.train()
 
 

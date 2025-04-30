@@ -48,12 +48,15 @@ use_desc=True
 prompt_path=prompts/reflection_amazon.txt
 generate_config=True
 model_dir=$6/auc_uauc
+elif [[ $stragety == *'soft'* ]]; then
+generate_config=False
+model_dir=$6/auc_uauc
 fi
 
 if [[ $stage == 'eval' ]];then
 testdata=\[test_small\]
 max_len=16
-batch_size_eval=4
+batch_size_eval=2
 eval_text=False
 elif [[ $stage == 'test' ]];then
 testdata=\[test_tiny\]
@@ -63,4 +66,8 @@ batch_size_eval=2
 eval_text=True
 fi
 echo $testdata $data $stragety $model_dir
-CUDA_VISIBLE_DEVICES=$gpu WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=$port train_collm_mf_din.py  --cfg-path train_configs/new/reason_mf_eval.yaml --options model.generate_config.enable $generate_config model.generate_config.max_len $max_len model.prompt_path $prompt_path model.rec_config.pretrained_path $mf_model model.ckpt $model_dir datasets.amazon_ood.path $data/ datasets.amazon_ood.build_info.use_ids $use_ids datasets.amazon_ood.build_info.use_desc $use_desc datasets.amazon_ood.build_info.storage $data/ run.test_splits $testdata run.batch_size_eval $batch_size_eval run.eval_text $eval_text datasets.amazon_ood.build_info.user2group $user2group
+if [[ $stragety == *'soft'* ]];then
+    CUDA_VISIBLE_DEVICES=$gpu WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=$port train_collm_mf_din.py  --cfg-path train_configs/new/soft_mf_eval.yaml --options model.generate_config.enable $generate_config model.generate_config.max_len $max_len model.ckpt $model_dir datasets.amazon_ood.path $data/ datasets.amazon_ood.build_info.storage $data/ run.test_splits $testdata run.batch_size_eval $batch_size_eval run.eval_text $eval_text
+else
+    CUDA_VISIBLE_DEVICES=$gpu WORLD_SIZE=1 torchrun --nproc-per-node 1 --master_port=$port train_collm_mf_din.py  --cfg-path train_configs/new/reason_mf_eval.yaml --options model.generate_config.enable $generate_config model.generate_config.max_len $max_len model.prompt_path $prompt_path model.rec_config.pretrained_path $mf_model model.ckpt $model_dir datasets.amazon_ood.path $data/ datasets.amazon_ood.build_info.use_ids $use_ids datasets.amazon_ood.build_info.use_desc $use_desc datasets.amazon_ood.build_info.storage $data/ run.test_splits $testdata run.batch_size_eval $batch_size_eval run.eval_text $eval_text datasets.amazon_ood.build_info.user2group $user2group
+fi

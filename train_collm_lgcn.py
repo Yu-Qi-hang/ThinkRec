@@ -96,10 +96,10 @@ def main():
     datasets = task.build_datasets(cfg)
     # cfg.model_cfg.get("user_num", "default")
     # data_name = list(datasets.keys())[0]
-    try: #  movie
-        data_dir = cfg.datasets_cfg.movie_ood.path
-    except: # amazon
-        data_dir = cfg.datasets_cfg.amazon_ood.path
+    # try: #  movie
+    #     data_dir = cfg.datasets_cfg.movie_ood.path
+    # except: # amazon
+    data_dir = cfg.datasets_cfg.amazon_ood.path
     print("data dir:", data_dir)
     cfg.model_cfg.user2group = None
     if cfg.run_cfg.evaluate: #split table needed only evaluate step
@@ -107,9 +107,10 @@ def main():
         if isinstance(ckpt,str):
             lora_adapter = os.path.join('/'.join(ckpt.split('/')[:-1]),'lora_adapter')
             if os.path.exists(lora_adapter):
-                n_clusters = len(os.listdir(lora_adapter))
-                if n_clusters > 1:
-                    cfg.model_cfg.user2group = os.path.join(data_dir,f'mf_user_group_{n_clusters}.csv')
+                cfg.model_cfg.user2group = cfg.datasets_cfg.amazon_ood.build_info.user2group
+                # n_clusters = len(os.listdir(lora_adapter))
+                # if n_clusters > 1:
+                #     cfg.model_cfg.user2group = os.path.join(data_dir,f'mf_user_group_{n_clusters}.csv')
         
     gnndata = GnnDataset(cfg.model_cfg.rec_config,data_dir)  #movie_ood (also used for amazon)
     cfg.model_cfg.rec_config.user_num =  int(gnndata.m_users)  #cfg.model_cfg.get("user_num",)

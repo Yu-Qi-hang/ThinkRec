@@ -8,6 +8,7 @@
 import datetime
 import json
 import logging
+from math import e
 import os
 import time
 from pathlib import Path
@@ -150,11 +151,15 @@ class RecRunnerBase(RunnerBase):
         if save_lora:
             # 保存 LoRA 适配器参数
             os.makedirs(os.path.join(self.output_dir, f"adapter_{tag}"),exist_ok=True)
-            lora_state_dict = get_peft_model_state_dict(model_no_ddp.llama_model_lora)
+            try:
+                lora_state_dict = get_peft_model_state_dict(model_no_ddp.llama_model_lora,adapter_name='group0')
+                lora_config = model_no_ddp.llama_model_lora.peft_config['group0'] # 获取LoRA配置信息
+            except:
+                lora_state_dict = get_peft_model_state_dict(model_no_ddp.llama_model_lora)
+                lora_config = model_no_ddp.llama_model_lora.peft_config['default'] # 获取LoRA配置信息
             torch.save(lora_state_dict, os.path.join(self.output_dir, f"adapter_{tag}", f"adapter_model.bin"))
             lora_config_file = os.path.join(self.output_dir, f"adapter_{tag}", f"adapter_config.json")
             if not os.path.exists(lora_config_file):
-                lora_config = model_no_ddp.llama_model_lora.peft_config['default'] # 获取LoRA配置信息
                 adapter_config = {
                     'peft_type': "LORA",
                     'r': int(lora_config.r),

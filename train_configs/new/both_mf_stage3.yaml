@@ -26,11 +26,6 @@ model:
   item_num: -100
   ans_type: 'v2'
   rec_model: "MF" #[MF, lightgcn,.....], see "Rec2Base" class in  minigpt4/models/rec_model.py
-  loss_config:
-    alpha: 0.1  #recommend
-    beta: 0.9   #speaking
-    theta: 0.9  #recommend
-    gamma: 0.1   #speaking
   lora_config:
     use_lora: True
     r: 8
@@ -73,7 +68,7 @@ run:
   mode: 'v3'
 
   weight_decay: 1e-3 #0.05
-  max_epoch: 30
+  max_epoch: 35
   iters_per_epoch: 800 #100 #50 #200
   batch_size_train: 1 #48
   batch_size_eval: 2 #48
@@ -88,8 +83,7 @@ run:
   resume_ckpt_path: null
 
   evaluate: False # False True
-  train_splits: ["reason","train"]
-  train_ratios: [0.2,0.8]
+  train_splits: ["train"]
   valid_splits: ["valid"]
   test_splits: ["test"]
   # test_splits: ["test_warm", "test_cold", "test", "valid"]

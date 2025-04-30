@@ -128,6 +128,7 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
 
         build_info = self.config.build_info
         storage_path = build_info.storage
+        sas_seq_len = build_info.get("sas_seq_len", None)
         print(f'build_info:{build_info}')
 
         datasets = dict()
@@ -143,7 +144,8 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
             seq_len=build_info.seq_len,
             user2group=build_info.user2group,
             use_ids=build_info.use_ids,
-            use_desc=build_info.use_desc
+            use_desc=build_info.use_desc,
+            sas_seq_len=sas_seq_len
         )
         if not evaluate_only:
             try:
@@ -153,7 +155,8 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 seq_len=build_info.seq_len,
                 user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
-                use_desc=build_info.use_desc
+                use_desc=build_info.use_desc,
+                sas_seq_len=sas_seq_len
                 )
             except:
                 print("Not existing",os.path.join(storage_path, 'reason_ood2.pkl'))
@@ -164,7 +167,8 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 seq_len=build_info.seq_len,
                 user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
-                use_desc=build_info.use_desc
+                use_desc=build_info.use_desc,
+                sas_seq_len=sas_seq_len
                 )
             except:
                 print("Not existing",os.path.join(storage_path, 'valid_small'))
@@ -177,7 +181,8 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 seq_len=build_info.seq_len,
                 user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
-                use_desc=build_info.use_desc
+                use_desc=build_info.use_desc,
+                sas_seq_len=sas_seq_len
                 )
                 datasets['test_tiny'] = dataset_cls(
                 text_processor=self.text_processors["train"],
@@ -185,7 +190,8 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 seq_len=build_info.seq_len,
                 user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
-                use_desc=build_info.use_desc
+                use_desc=build_info.use_desc,
+                sas_seq_len=sas_seq_len
                 )
                 datasets['test_warm'] = dataset_cls(
                 text_processor=self.text_processors["train"],
@@ -193,7 +199,8 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 seq_len=build_info.seq_len,
                 user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
-                use_desc=build_info.use_desc
+                use_desc=build_info.use_desc,
+                sas_seq_len=sas_seq_len
                 )
                 datasets['test_cold'] = dataset_cls(
                 text_processor=self.text_processors["train"],
@@ -201,7 +208,8 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 seq_len=build_info.seq_len,
                 user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
-                use_desc=build_info.use_desc
+                use_desc=build_info.use_desc,
+                sas_seq_len=sas_seq_len
                 )
             except:
                 print("Not existing",os.path.join(storage_path, 'test_ood2.pkl'))
@@ -212,7 +220,8 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 seq_len=build_info.seq_len,
                 user2group=build_info.user2group,
                 use_ids=build_info.use_ids,
-                use_desc=build_info.use_desc
+                use_desc=build_info.use_desc,
+                sas_seq_len=sas_seq_len
                 )
             except:
                 print("Not existing test_small, test loaded")

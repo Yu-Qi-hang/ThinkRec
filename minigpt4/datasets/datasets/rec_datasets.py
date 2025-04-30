@@ -320,7 +320,7 @@ class MoiveOOData_sasrec(RecBaseDataset):
 
 
 class AmazonOOData(RecBaseDataset):
-    def __init__(self, text_processor=None, ann_paths=None, seq_len=None, user2group='', use_ids=False, use_desc=True):
+    def __init__(self, text_processor=None, ann_paths=None, seq_len=None, user2group='', use_ids=False, use_desc=True, sas_seq_len=None):
         super().__init__()
         # self.vis_root = vis_root
         # self.annotation = pd.read_csv(ann_paths[0],sep='\t', index_col=None,header=0)[['uid','iid','title','sessionItems', 'sessionItemTitles']]
@@ -336,6 +336,7 @@ class AmazonOOData(RecBaseDataset):
         self.use_desc = use_desc
         self.prompt_flag = False
         self.user2group = None
+        self.sas_seq_len = sas_seq_len
         # user2group = f"{'/'.join(ann_paths[0].split('/')[:-1])}/user_group.csv"
         # print(user2group,os.path.exists(user2group))
         # if os.path.exists(user2group) and ('valid' in ann_paths[0] or 'test' in ann_paths[0]):
@@ -401,7 +402,7 @@ class AmazonOOData(RecBaseDataset):
         if self.user2group is not None:
             # print(type(self.annotation['UserID'][0]),type(self.user2group['user_id'][0]))
             merged_df = pd.merge(self.annotation, self.user2group, left_on='UserID', right_on='user_id', how='left')
-            sorted_df = merged_df.sort_values(by='group_id')
+            sorted_df = merged_df.sort_values(by=['group_id','UserID'])
             self.annotation = sorted_df.drop(columns=['user_id', 'group_id']).reset_index(drop=True)
             print('dataset reordered by group')
 
@@ -446,6 +447,12 @@ class AmazonOOData(RecBaseDataset):
                 InteractedNum = self.max_lenght
             else:
                 b = a
+            if self.sas_seq_len is not None:
+                if len(a) < self.sas_seq_len: # used for sasrec
+                    c = [0]*(self.sas_seq_len - len(a))
+                    c.extend(a)
+                elif len(a) >= self.sas_seq_len:
+                    c = a[-self.sas_seq_len:]
 
             if self.use_label:
                 InteractedItemLabels = ann['InteractedItemLabels']
@@ -485,6 +492,8 @@ class AmazonOOData(RecBaseDataset):
                 one_sample['reason'] = ann['reason']
             else:
                 one_sample['reason'] = 'Yes' if ann['label'] else 'No'
+            if self.sas_seq_len is not None:
+                one_sample['sas_seq'] = np.array(c)
         else:
             one_sample = {
                 "UserID": ann['UserID'],

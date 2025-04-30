@@ -258,10 +258,36 @@ class MiniGPT4Rec_v3(Rec2Base):
         print(user2group)
         if os.path.exists(user2group):
             self.user2group = pd.read_csv(user2group)
-            self.user2group.columns = ['user_id','group_id']
+            if self.rec_model_type == "sasrec":
+                self.user2group.columns = ['user_id','group_id','embedding']
+            else:
+                self.user2group.columns = ['user_id','group_id']
             self.user2group['user_id'] = self.user2group['user_id'].astype(int)
             self.user2group['group_id'] = self.user2group['group_id'].astype(int)
             print('set user2group done!!!')
+            self.active_user = 0
+            self.base_lora = []
+            num_groups = self.user2group['group_id'].max() + 1
+            self.all_user_embeds, _ = self.rec_encoder.computer()
+            for group_id in range(num_groups):
+                group_lines = self.user2group[self.user2group['group_id'] == group_id]
+                group_users = group_lines['user_id'].tolist()
+                if self.rec_model_type == "sasrec":  # for sasrec, there is no user encoder but just seqs encoder, we take it to get user representation
+                    # user_embeds = self.rec_encoder.seq_encoder(torch.tensor(group_users)).detach().mean(dim=-2)
+                    user_embeds = torch.tensor(group_lines['embedding']).mean(dim=-2)
+                else:
+                    user_embeds = self.rec_encoder.user_encoder(torch.tensor(group_users), all_users=self.all_user_embeds).detach().mean(dim=-2)
+                print('group_id:', group_id, 'group_users:', len(group_users), 'user_embeds:', user_embeds.shape)
+                self.base_lora.append(user_embeds)
+            # if self.rec_model_type == "sasrec":  # for sasrec, there is no user encoder but just seqs encoder, we take it to get user representation
+            #     # user_embeds = self.rec_encoder.seq_encoder(torch.tensor(group_users)).detach().mean(dim=-2)
+            #     user_embeds = torch.tensor(self.user2group['embedding']).mean(dim=-2)
+            # else:
+            #     user_embeds = self.rec_encoder.user_encoder(torch.tensor(self.user2group['user_id'].tolist()), all_users=self.all_user_embeds).detach().mean(dim=-2)
+            # self.base_lora.append(user_embeds)
+            
+            self.base_lora = torch.vstack(self.base_lora)
+            print('base_lora:', self.base_lora.shape)
         else:
             print('user2group not found!!!')
 
@@ -384,6 +410,50 @@ class MiniGPT4Rec_v3(Rec2Base):
             loss = self.loss_theta * loss_pred + self.loss_gamma * outputs.loss
         return {"loss": loss}
 
+    def adaptive_lora(self,user):
+        if self.rec_model_type == "sasrec":  # for sasrec, there is no user encoder but just seqs encoder, we take it to get user representation
+            user_embeds = self.rec_encoder.seq_encoder(torch.tensor(user)).detach()
+            # user_embeds = self.user2group[self.user2group['user_id']==user]['embedding']
+        else:
+            user_embeds = self.rec_encoder.user_encoder(torch.tensor(user), all_users=self.all_user_embeds).detach()
+        cos_sim = F.cosine_similarity(user_embeds.unsqueeze(0), self.base_lora.to(user_embeds.device), dim=-1)
+        # 将余弦相似度转换为正数
+        # cos_sim = torch.clamp(cos_sim, min=1e-3)
+        # 归一化，使得每行的权重和为1
+        tau = 0.1
+        lora_weights = torch.softmax(cos_sim / tau, dim=-1)
+        n_clusters = len(lora_weights)
+        print(f'user {user} lora_weights:',cos_sim,lora_weights)
+        ent = -torch.sum(lora_weights * torch.log(lora_weights + 1e-10), dim=-1)
+        if torch.max(lora_weights)>0.5+0.6/n_clusters:
+            group_id = torch.argmax(lora_weights).item()
+            print(f'set group {group_id} adapter')
+            self.llama_model_lora.set_adapter(f"group{group_id}")
+        elif ent >= 0.95*torch.log(torch.tensor(n_clusters)):
+            print('set general adapter')
+            self.llama_model_lora.set_adapter(f'group{cos_sim.shape[0]}')
+        else:
+            merge_adapters = [f'group{i}' for i in range(len(lora_weights))]
+            self.llama_model_lora.add_weighted_adapter(
+                adapters=merge_adapters,
+                weights=lora_weights,
+                combination_type="linear",
+                adapter_name=str(user)
+            )
+            self.llama_model_lora.set_adapter(str(user))
+        # if torch.max(lora_weights)-torch.min(lora_weights)<0.2:
+            # print('set general adapter')
+            # self.llama_model_lora.set_adapter(f'group{cos_sim.shape[0]}')
+        # elif torch.max(lora_weights)-torch.min(lora_weights)>0.8:
+        #     group_id = torch.argmax(lora_weights).item()
+        #     print(f'set group {group_id} adapter')
+        #     self.llama_model_lora.set_adapter(f"group{group_id}")
+        try:
+            self.llama_model_lora.delete_adapter(self.active_user)
+        except:
+            pass
+        self.active_user = str(user)
+
     def generate_for_samples_v3(self, samples, return_all=False):
         ret = {}
         prompt = self.prompt_list[0]
@@ -418,12 +488,15 @@ class MiniGPT4Rec_v3(Rec2Base):
             print(f'{inputs_embeds.shape[1]}',file=open('gtoken_lens.txt','a'))
 
         if self.user2group is not None:
-            current_adapter = self.llama_model_lora.active_adapter #group0,group1
-            group_id = f"group{self.user2group[self.user2group['user_id']==samples['UserID'].cpu().tolist()[0]]['group_id'].item()}"
-            # print(current_adapter,group_id)
-            if group_id != current_adapter:
-                print(f'switch to {group_id}')
-                self.llama_model_lora.set_adapter(group_id)
+            if self.active_user != str(samples['UserID'][0]):
+                user = samples['sas_seq'][0] if self.rec_model_type == "sasrec" else samples['UserID'][0]
+                self.adaptive_lora(user)
+            # current_adapter = self.llama_model_lora.active_adapter #group0,group1
+            # group_id = f"group{self.user2group[self.user2group['user_id']==samples['UserID'].cpu().tolist()[0]]['group_id'].item()}"
+            # # print(current_adapter,group_id)
+            # if group_id != current_adapter:
+            #     print(f'switch to {group_id}')
+            #     self.llama_model_lora.set_adapter(group_id)
                 # self.llama_model_lora.add_weighted_adapter()
 
         with self.maybe_autocast():
@@ -523,6 +596,7 @@ class MiniGPT4Rec_v3(Rec2Base):
                 user_embeds = self.rec_encoder.all_encode(sample['UserID'],sample['TargetItemID'],sample['sas_seq'][:,-10:]).unsqueeze(-2)
             else:
                 user_embeds = self.rec_encoder.user_encoder(sample['UserID'], all_users=all_user_embeds).unsqueeze(-2)
+            # print("shape of user_embeds",user_embeds.shape)
             # ***Note: here, for sasrec, item embedding comes form the last layer 
             targetItem_embed = self.rec_encoder.item_encoder(sample['TargetItemID'], all_items=all_item_embeds).unsqueeze(-2)
 
@@ -1337,11 +1411,11 @@ class MiniGPT4Rec_v3(Rec2Base):
                     adapters = [os.path.join(ckpt_path,f"adapter_{tag}")]
                     model.llama_model_lora.load_adapter(adapters[0], adapter_name="group0", is_trainable= not freeze_lora)
                 model.llama_model_lora.set_adapter("group0")
+                model.llama_model_lora.delete_adapter("default")
                 if len(adapters)>1:
                     model.set_user2group(user2group)
                 print(f"loading {len(adapters)} adapters")
         elif ckpt_path is not None:#stage2,一个也可以
-            print('loading adapters')
             is_trainable = False
             if isinstance(freeze_lora,bool):
                 is_trainable = not freeze_lora
@@ -1349,7 +1423,9 @@ class MiniGPT4Rec_v3(Rec2Base):
                 is_trainable = freeze_lora.get('layers',False)!=False
             for idx,adapter in enumerate(ckpt_path):
                 model.llama_model_lora.load_adapter(adapter, adapter_name=f"group{idx}",is_trainable=is_trainable)
+                print(f'loading adapter {adapter} as group{idx}')
             model.llama_model_lora.set_adapter("group0")
+            model.llama_model_lora.delete_adapter("default")
             if len(ckpt_path)>1:
                 model.set_user2group(user2group)
         if freeze_lora:

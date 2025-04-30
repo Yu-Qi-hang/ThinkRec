@@ -1,0 +1,83 @@
+model:
+  arch: mini_gpt4rec_v3
+  model_type: pretrain_vicuna
+  freeze_rec: True
+  freeze_proj: True  # stage 1: proj false, lora: false
+  freeze_lora: True #  sateg2: proj true, lora false
+  prompt_path: "prompts/softprompt_.txt"
+  generate_config:
+    enable: True
+    max_len: 16
+
+  max_txt_len: 2048
+  proj_token_num: 3
+  proj_drop: 0
+  proj_mid_times: 10
+  end_sym: "###"
+  # prompt_template: '### Input: {} \n### Response:'
+  prompt_template: '{}'
+  llama_model: "/data/yuqihang/model/Meta-Llama-3-8B-Instruct/" #"/data/yuqihang/model/vicuna-7b/vicuna-7b-v0/"
+  user_num: -100
+  item_num: -100
+  ans_type: 'v2'
+  rec_model: "soft_prompt"
+  lora_config:
+    use_lora: True
+    r: 8
+    alpha: 16
+    target_modules: ["q_proj", "v_proj"] # ['lm_head'] ##["lm_head"] # ['lm_head'] ['lm_head'] #
+    dropout: 0.05
+  rec_config:
+    user_num: -100
+    item_num: -100
+    embedding_size: 4096 # the size of the LLM token embedding
+    pretrained_path: not_have
+    
+  ckpt: /home/sist/zyang/LLM/minigpt4recLog/20231010025/checkpoint_best.pth
+
+datasets:
+  amazon_ood:
+    path: /data/yuqihang/datasets/collm-datasets/booknew/
+    data_type: default
+    build_info:
+      seq_len: 10
+      user2group: ''
+      use_ids: False
+      use_desc: False
+      storage: /data/yuqihang/datasets/collm-datasets/booknew/
+
+run:
+  task: rec_pretrain
+  # optimizer
+  lr_sched: "linear_warmup_cosine_lr"  # "linear_warmup_step_lr"
+  init_lr: 1e-4
+  # min_lr: 8e-5c
+  # init_lr: 1e-2
+  min_lr: 8e-5
+  warmup_lr: 1e-5
+  mode: 'v3' 
+
+  weight_decay: 1e-3 #0.05
+  max_epoch: 50
+  iters_per_epoch: 800 #100
+  batch_size_train: 1
+  batch_size_eval: 4
+  num_workers: 2
+  warmup_steps: 200 #200
+
+  seed: 42
+  output_dir: /data/yuqihang/result/CoLLM/reproduce
+
+  amp: True
+  resume_ckpt_path: null
+
+  evaluate: True
+  eval_text: False
+  train_splits: ["train"]
+  valid_splits: ["valid"]
+  test_splits: ["test_small"]
+
+  device: "cuda"
+  world_size: 1
+  dist_url: "env://"
+  distributed: False

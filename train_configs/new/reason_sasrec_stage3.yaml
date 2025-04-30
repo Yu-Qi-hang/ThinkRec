@@ -25,7 +25,7 @@ model:
   user_num: -100
   item_num: -100
   ans_type: 'v2'
-  rec_model: "MF" #[MF, lightgcn,.....], see "Rec2Base" class in  minigpt4/models/rec_model.py
+  rec_model: "sasrec" #[MF, lightgcn,.....], see "Rec2Base" class in  minigpt4/models/rec_model.py
   loss_config:
     alpha: 0.1  #recommend
     beta: 0.9   #speaking
@@ -38,9 +38,17 @@ model:
     target_modules: ["q_proj", "v_proj"] # ['lm_head'] ##["lm_head"] # ['lm_head'] ['lm_head'] #
     dropout: 0.05
   rec_config:
+    dataset: ml1m
     user_num: -100
     item_num: -100
-    embedding_size: 256
+    embedding_size: 64
+    embed_size: 64
+    hidden_units: 64
+    num_blocks: 2
+    num_heads: 1
+    dropout_rate: 0.2
+    l2_emb: 1e-4 # not used
+    maxlen: 25
     pretrained_path: /data/yuqihang/result/CoLLM/checkpoints/mf/0228_booknew_best_model_d256_lr0.001_wd1e-06.pth
     
 
@@ -54,6 +62,7 @@ datasets:
     path: /data/yuqihang/datasets/collm-datasets/bookdu/
     data_type: default
     build_info:
+      sas_seq_len: 25
       seq_len: 10
       user2group: ''
       use_ids: False

@@ -11,7 +11,7 @@ from minigpt4.models.rec_model import Rec2Base, disabled_train
 from transformers import LlamaTokenizer, GenerationConfig, AutoTokenizer
 import re
 import numpy as np
-from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, prepare_model_for_int8_training, set_peft_model_state_dict
+from peft import LoraConfig, get_peft_model
 
 def get_ids_order(prompt):
     id_flags = ["<UserID>", "<ItemIDList>", "<TargetItemID>"]

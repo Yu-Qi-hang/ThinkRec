@@ -21,8 +21,10 @@ class Rec_config:
     def __init__(self, para_dict):
         self.user_num = para_dict.get("user_num", -100)
         self.item_num = para_dict.get("item_num", -100)
+    def add_para_mf(self, para_dict):
         self.embedding_size = para_dict.get("embedding_size", 256)
-    def add_para(self, para_dict):
+    def add_para_l(self, para_dict):
+        self.embedding_size = para_dict.get("embedding_size", 256)
         self.embed_size = para_dict.get("embed_size", 64)
         self.gcn_layers = para_dict.get("gcn_layers", 2)
         self.dropout = para_dict.get("dropout", False)
@@ -32,6 +34,14 @@ class Rec_config:
         self.pretrain = para_dict.get("pretrain", 0)
         self.init_emb = para_dict.get("init_emb", 1e-1)
         self.dataset = para_dict.get("dataset", None)
+    def add_para_s(self, para_dict):
+        self.hidden_units = para_dict.get("hidden_units", 64)
+        self.dropout_rate = para_dict.get("dropout_rate", 0.2)
+        self.maxlen = para_dict.get("maxlen", 25)
+        self.l2_emb = para_dict.get("l2_emb", 1e-4)
+        self.num_blocks = para_dict.get("num_blocks", 2)
+        self.num_heads = para_dict.get("num_heads", 1)
+
 def init_rec_encoder(rec_model, config):
     if rec_model == "MF":
         print("### rec_encoder:", "MF")
@@ -153,24 +163,36 @@ if __name__ == "__main__":
     if not os.path.exists(args.data_ref):
         args.data_ref = data_dir[:-2]
     n_clusters = args.n
-    rec_model = "lightgcn" if 'lightgcn' in args.pretrained_rec else 'MF'
+    if 'lightgcn' in args.pretrained_rec:
+        rec_model = "lightgcn"
+    elif 'sasrec' in args.pretrained_rec:
+        rec_model = "sasrec"
+    else:
+        rec_model = "MF"
     pretrained_rec = args.pretrained_rec
 
     train_ = pd.read_pickle(os.path.join(data_dir,"train_ood2.pkl"))
     valid_ = pd.read_pickle(os.path.join(data_dir,"valid_ood2.pkl"))
     test_ = pd.read_pickle(os.path.join(data_dir,"test_ood2.pkl"))
+    total_ = pd.concat([train_[['uid','iid', 'his']],valid_[['uid','iid', 'his']],test_[['uid','iid', 'his']]],axis=0)
     reason_ = pd.read_pickle(os.path.join(data_dir,"reason_ood2.pkl"))
-    user_num = max(train_.uid.max(),valid_.uid.max(),test_.uid.max())+1
-    item_num = max(train_.iid.max(),valid_.iid.max(),test_.iid.max())+1
+    user_num = total_.uid.max()+1
+    item_num = total_.iid.max()+1
 
     print('Loading Rec_model')
     if rec_model == "MF":
         rec_config_ = {'user_num':int(user_num), 'item_num':int(item_num), 'embedding_size':256}
         rec_config = Rec_config(rec_config_)
+        rec_config.add_para_mf(rec_config_)
     elif rec_model == "lightgcn":
         rec_config_ = {'user_num':int(user_num), 'item_num':int(item_num), 'embedding_size':64, 'embed_size':64, 'dataset':args.data_ref.strip('/').split('/')[-1]}
         rec_config = Rec_config(rec_config_)
-        rec_config.add_para(rec_config_)
+        rec_config.add_para_l(rec_config_)
+    elif rec_model == "sasrec":
+        rec_config_ = {'user_num':int(user_num), 'item_num':int(item_num), 'hidden_units':64}
+        rec_config = Rec_config(rec_config_)
+        rec_config.add_para_s(rec_config_)
+
     rec_encoder = init_rec_encoder(rec_model, rec_config)
     rec_encoder.load_state_dict(torch.load(pretrained_rec, map_location="cpu"))
     if rec_model == "lightgcn":
@@ -183,13 +205,29 @@ if __name__ == "__main__":
     rec_encoder = rec_encoder.eval()
     print("freeze rec encoder")
 
-    users = list(train_.uid)
-    users.extend(list(test_.uid))
-    users.extend(list(valid_.uid))
+    users = list(total_.uid)
+    # users.extend(list(test_.uid))
+    # users.extend(list(valid_.uid))
     users = list(set(users))
 
-    user_embeds = rec_encoder.user_encoder(torch.tensor(users)).detach().numpy()
-
+    if rec_model == "sasrec":
+        total_['len'] = total_['his'].apply(lambda x: len(x))
+        total_ = total_.sort_values(['uid', 'len'], ascending=[True, False])
+        # max_len_per_user = total_.groupby('uid')['len'].transform('max')
+        sas_seqs = []
+        for user in users:
+            user_records = total_[total_.uid == user]
+            longest_record = user_records.iloc[0]
+            sas_seq = longest_record['his'].tolist()[-25:]
+            if len(sas_seq) < 25:
+                pre = [0]*(25-len(sas_seq))
+                pre.extend(sas_seq)
+                sas_seqs.append(pre)
+            else:
+                sas_seqs.append(sas_seq)
+        user_embeds = rec_encoder.seq_encoder(torch.tensor(sas_seqs)).detach().numpy()
+    else:
+        user_embeds = rec_encoder.user_encoder(torch.tensor(users)).detach().numpy()
     print('grouped user embedding')
     # 数据标准化 (对基于距离的聚类方法很重要)
     scaler = StandardScaler()
@@ -202,10 +240,17 @@ if __name__ == "__main__":
         cluster_labels = hierarchical_clustering(embeddings_scaled, n_clusters=n_clusters)
     # 将结果保存到DataFrame
     cluster = {}
-    results = pd.DataFrame({
-        'user_id': users,
-        'cluster': cluster_labels
-    })
+    if rec_model == "sasrec":
+        results = pd.DataFrame({
+            'user_id': users,
+            'cluster': cluster_labels,
+            'embedding': user_embeds.tolist()
+        })
+    else:
+        results = pd.DataFrame({
+            'user_id': users,
+            'cluster': cluster_labels,
+        })
     for user, cluster_label in zip(users,cluster_labels):
         if int(cluster_label) not in cluster:
             cluster[int(cluster_label)] = [user]
@@ -234,7 +279,7 @@ if __name__ == "__main__":
         valid_small_idx = valid_idx.sample(n=10000,random_state=2025) if len(valid_idx) > 10000 else valid_idx
         # test_idx = test_[test_['uid'].isin(cluster[idx])]
         reason_idx = reason_[reason_['uid'].isin(cluster[idx])]
-        print(f'{idx} data size:{len(train_idx)},{len(valid_idx)},{len(valid_small_idx)},{len(reason_idx)}')
+        print(f'{idx} data size:{len(train_idx)}, {len(valid_idx)}, {len(reason_idx)}')
         train_idx.to_pickle(os.path.join(data_group_dir_idx,"train_ood2.pkl"))
         valid_idx.to_pickle(os.path.join(data_group_dir_idx,"valid_ood2.pkl"))
         valid_small_idx.to_pickle(os.path.join(data_group_dir_idx,"valid_small_ood2.pkl"))

@@ -375,6 +375,7 @@ class SASRec(nn.Module):
         super(SASRec, self).__init__()
         self.config = args
 
+        self.padding_index=0
         self.user_num = args.user_num
         self.item_num = args.item_num
         
