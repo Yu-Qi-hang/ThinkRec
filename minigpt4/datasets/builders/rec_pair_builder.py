@@ -184,6 +184,9 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 use_desc=build_info.use_desc,
                 sas_seq_len=sas_seq_len
                 )
+            except Exception as e:
+                print("Not existing",os.path.join(storage_path, 'test_ood2.pkl'),e)
+            try:
                 datasets['test_tiny'] = dataset_cls(
                 text_processor=self.text_processors["train"],
                 ann_paths=[os.path.join(storage_path, 'test_tiny')],
@@ -193,26 +196,26 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
                 use_desc=build_info.use_desc,
                 sas_seq_len=sas_seq_len
                 )
-                datasets['test_warm'] = dataset_cls(
-                text_processor=self.text_processors["train"],
-                ann_paths=[os.path.join(storage_path, 'test=warm')],
-                seq_len=build_info.seq_len,
-                user2group=build_info.user2group,
-                use_ids=build_info.use_ids,
-                use_desc=build_info.use_desc,
-                sas_seq_len=sas_seq_len
-                )
-                datasets['test_cold'] = dataset_cls(
-                text_processor=self.text_processors["train"],
-                ann_paths=[os.path.join(storage_path, 'test=cold')],
-                seq_len=build_info.seq_len,
-                user2group=build_info.user2group,
-                use_ids=build_info.use_ids,
-                use_desc=build_info.use_desc,
-                sas_seq_len=sas_seq_len
-                )
-            except:
-                print("Not existing",os.path.join(storage_path, 'test_ood2.pkl'))
+            except Exception as e:
+                print("Not existing",os.path.join(storage_path, 'test_tiny_ood2.pkl'),e)
+                # datasets['test_warm'] = dataset_cls(
+                # text_processor=self.text_processors["train"],
+                # ann_paths=[os.path.join(storage_path, 'test=warm')],
+                # seq_len=build_info.seq_len,
+                # user2group=build_info.user2group,
+                # use_ids=build_info.use_ids,
+                # use_desc=build_info.use_desc,
+                # sas_seq_len=sas_seq_len
+                # )
+                # datasets['test_cold'] = dataset_cls(
+                # text_processor=self.text_processors["train"],
+                # ann_paths=[os.path.join(storage_path, 'test=cold')],
+                # seq_len=build_info.seq_len,
+                # user2group=build_info.user2group,
+                # use_ids=build_info.use_ids,
+                # use_desc=build_info.use_desc,
+                # sas_seq_len=sas_seq_len
+                # )
             try:
                 datasets['test_small'] = dataset_cls(
                 text_processor=self.text_processors["train"],

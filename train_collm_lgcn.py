@@ -113,6 +113,7 @@ def main():
                 #     cfg.model_cfg.user2group = os.path.join(data_dir,f'mf_user_group_{n_clusters}.csv')
         
     gnndata = GnnDataset(cfg.model_cfg.rec_config,data_dir)  #movie_ood (also used for amazon)
+    # cfg.model_cfg.Graph = gnndata.Graph
     cfg.model_cfg.rec_config.user_num =  int(gnndata.m_users)  #cfg.model_cfg.get("user_num",)
     cfg.model_cfg.rec_config.item_num = int(gnndata.n_items) #cfg.model_cfg.get("item_num", datasets[data_name]['train'].item_num)
     cfg.pretty_print()
@@ -122,6 +123,9 @@ def main():
     if cfg.model_cfg.rec_model == 'lightgcn':
         model.rec_encoder._set_graph(gnndata.Graph)
 
+    if len(model.llama_model_lora.peft_config) > 1:
+        model.set_user2group(cfg.model_cfg.user2group)
+    
     runner = get_runner_class(cfg)(
         cfg=cfg, job_id=job_id, task=task, model=model, datasets=datasets
     )

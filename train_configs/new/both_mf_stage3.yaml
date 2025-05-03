@@ -68,7 +68,7 @@ run:
   mode: 'v3'
 
   weight_decay: 1e-3 #0.05
-  max_epoch: 35
+  max_epoch: 30
   iters_per_epoch: 800 #100 #50 #200
   batch_size_train: 1 #48
   batch_size_eval: 2 #48

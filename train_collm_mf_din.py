@@ -120,6 +120,8 @@ def main():
     # cfg.pretty_print()
 
     model = task.build_model(cfg)
+    if len(model.llama_model_lora.peft_config) > 1:
+        model.set_user2group(cfg.model_cfg.user2group)
     runner = get_runner_class(cfg)(
         cfg=cfg, job_id=job_id, task=task, model=model, datasets=datasets
     )

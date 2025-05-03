@@ -127,26 +127,49 @@ def dbscan_clustering(data, dim=256):
 def visualize_clusters(embeddings, labels, save_fig):
     tsne = TSNE(n_components=2, random_state=42)
     embeddings_2d = tsne.fit_transform(embeddings)
-    plt.figure(figsize=(10, 8))
-    scatter = plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], c=labels, cmap='viridis', alpha=0.6)
-    plt.colorbar(scatter)
-    plt.title('t-SNE Visualization of User Clusters')
-    plt.xlabel('t-SNE 1')
-    plt.ylabel('t-SNE 2')
-    plt.savefig(save_fig)
-# # 可视化 (使用t-SNE降维到3D)
-# def visualize_clusters(embeddings, labels, save_fig):
-#     tsne = TSNE(n_components=3, random_state=42)  # 将 n_components 改为 3
-#     embeddings_3d = tsne.fit_transform(embeddings)
-#     fig = plt.figure(figsize=(10, 8))
-#     ax = fig.add_subplot(111, projection='3d')  # 添加 3D 子图
-#     scatter = ax.scatter(embeddings_3d[:, 0], embeddings_3d[:, 1], embeddings_3d[:, 2], c=labels, cmap='viridis', alpha=0.6)
-#     plt.colorbar(scatter)
-#     ax.set_title('t-SNE Visualization of User Clusters')
-#     ax.set_xlabel('t-SNE 1')
-#     ax.set_ylabel('t-SNE 2')
-#     ax.set_zlabel('t-SNE 3')
-#     plt.savefig(save_fig)
+    plt.figure(figsize=(16, 8))
+    # 设置透明背景
+    fig = plt.gcf()
+    fig.patch.set_facecolor('white')  # 或者使用 'none' 表示完全透明
+    fig.patch.set_alpha(0)  
+    # s_values = np.ones_like(embeddings_2d[:, 0]) * 50
+    scatter = plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], c=labels, cmap='viridis', alpha=0.6,s=200)
+    # plt.tick_params(axis='both', which='major', labelsize=20)
+    # 显示横纵坐标轴（spines）
+    ax = plt.gca()  # 获取当前坐标轴
+    # 去除背景颜色
+    ax.set_facecolor("white")  # 或 "none" 如果你想透明
+    ax.patch.set_alpha(0)       # 背景透明
+    # 去除网格线
+    ax.grid(False)
+    ax.spines['top'].set_visible(True)     # 显示顶部边框
+    ax.spines['right'].set_visible(True)   # 显示右侧边框
+    ax.spines['bottom'].set_visible(True)  # 显示底部边框
+    ax.spines['left'].set_visible(True)    # 显示左侧边框
+    # 可选：设置坐标轴粗细（宽度）
+    ax.spines['top'].set_linewidth(8)
+    ax.spines['right'].set_linewidth(8)
+    ax.spines['bottom'].set_linewidth(8)
+    ax.spines['left'].set_linewidth(8)
+    # 设置刻度线更粗，同时隐藏刻度标签
+    plt.tick_params(
+        axis='both',       # 对x轴和y轴都生效
+        which='both',      # 同时包括主刻度和次刻度
+        direction='in',    # 刻度线朝内
+        length=10,          # 刻度线长度
+        width=5,           # 刻度线粗细
+        labelleft=False,   # 不显示 y 轴刻度标签
+        labelbottom=False  # 不显示 x 轴刻度标签
+    )
+    # plt.colorbar(scatter)
+    # plt.title('t-SNE Visualization of User Clusters')
+    # plt.xlabel('t-SNE 1')
+    # plt.ylabel('t-SNE 2')
+    # plt.savefig(save_fig)
+    plt.tight_layout()  # 自动调整布局防止裁剪
+    plt.savefig(save_fig, transparent=True, bbox_inches='tight')  # 保存时背景透明
+    plt.close()
+
 
 
 if __name__ == "__main__":
@@ -256,7 +279,7 @@ if __name__ == "__main__":
             cluster[int(cluster_label)] = [user]
         else:
             cluster[int(cluster_label)].append(user)
-    save_fig = os.path.join(data_dir,f'{rec_model.lower()}_user_group_{n_clusters}.png')
+    save_fig = os.path.join(data_dir,f'{rec_model.lower()}_user_group_{n_clusters}.svg')
     visualize_clusters(embeddings_scaled, cluster_labels, save_fig)
     # 查看聚类结果
     print("聚类结果统计:")

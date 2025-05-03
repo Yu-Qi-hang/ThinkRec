@@ -273,19 +273,11 @@ class MiniGPT4Rec_v3(Rec2Base):
                 group_lines = self.user2group[self.user2group['group_id'] == group_id]
                 group_users = group_lines['user_id'].tolist()
                 if self.rec_model_type == "sasrec":  # for sasrec, there is no user encoder but just seqs encoder, we take it to get user representation
-                    # user_embeds = self.rec_encoder.seq_encoder(torch.tensor(group_users)).detach().mean(dim=-2)
-                    user_embeds = torch.tensor(group_lines['embedding']).mean(dim=-2)
+                    user_embeds = torch.tensor([np.array(eval(x), dtype=np.float16) for x in group_lines['embedding']]).mean(dim=-2)
                 else:
                     user_embeds = self.rec_encoder.user_encoder(torch.tensor(group_users), all_users=self.all_user_embeds).detach().mean(dim=-2)
                 print('group_id:', group_id, 'group_users:', len(group_users), 'user_embeds:', user_embeds.shape)
                 self.base_lora.append(user_embeds)
-            # if self.rec_model_type == "sasrec":  # for sasrec, there is no user encoder but just seqs encoder, we take it to get user representation
-            #     # user_embeds = self.rec_encoder.seq_encoder(torch.tensor(group_users)).detach().mean(dim=-2)
-            #     user_embeds = torch.tensor(self.user2group['embedding']).mean(dim=-2)
-            # else:
-            #     user_embeds = self.rec_encoder.user_encoder(torch.tensor(self.user2group['user_id'].tolist()), all_users=self.all_user_embeds).detach().mean(dim=-2)
-            # self.base_lora.append(user_embeds)
-            
             self.base_lora = torch.vstack(self.base_lora)
             print('base_lora:', self.base_lora.shape)
         else:
@@ -412,7 +404,8 @@ class MiniGPT4Rec_v3(Rec2Base):
 
     def adaptive_lora(self,user):
         if self.rec_model_type == "sasrec":  # for sasrec, there is no user encoder but just seqs encoder, we take it to get user representation
-            user_embeds = self.rec_encoder.seq_encoder(torch.tensor(user)).detach()
+            user_embeds = self.rec_encoder.seq_encoder(torch.tensor(user))[0].detach()
+            # print("user embeds shape:",user_embeds.shape)
             # user_embeds = self.user2group[self.user2group['user_id']==user]['embedding']
         else:
             user_embeds = self.rec_encoder.user_encoder(torch.tensor(user), all_users=self.all_user_embeds).detach()
@@ -489,7 +482,7 @@ class MiniGPT4Rec_v3(Rec2Base):
 
         if self.user2group is not None:
             if self.active_user != str(samples['UserID'][0]):
-                user = samples['sas_seq'][0] if self.rec_model_type == "sasrec" else samples['UserID'][0]
+                user = samples['sas_seq'] if self.rec_model_type == "sasrec" else samples['UserID'][0]
                 self.adaptive_lora(user)
             # current_adapter = self.llama_model_lora.active_adapter #group0,group1
             # group_id = f"group{self.user2group[self.user2group['user_id']==samples['UserID'].cpu().tolist()[0]]['group_id'].item()}"
@@ -1412,8 +1405,8 @@ class MiniGPT4Rec_v3(Rec2Base):
                     model.llama_model_lora.load_adapter(adapters[0], adapter_name="group0", is_trainable= not freeze_lora)
                 model.llama_model_lora.set_adapter("group0")
                 model.llama_model_lora.delete_adapter("default")
-                if len(adapters)>1:
-                    model.set_user2group(user2group)
+                # if len(adapters)>1:
+                    # model.set_user2group(user2group)
                 print(f"loading {len(adapters)} adapters")
         elif ckpt_path is not None:#stage2,一个也可以
             is_trainable = False
@@ -1426,8 +1419,8 @@ class MiniGPT4Rec_v3(Rec2Base):
                 print(f'loading adapter {adapter} as group{idx}')
             model.llama_model_lora.set_adapter("group0")
             model.llama_model_lora.delete_adapter("default")
-            if len(ckpt_path)>1:
-                model.set_user2group(user2group)
+            # if len(ckpt_path)>1:
+                # model.set_user2group(user2group)
         if freeze_lora:
             print("freeze lora...")
             try:
@@ -1445,6 +1438,7 @@ class MiniGPT4Rec_v3(Rec2Base):
         # reload the rec model, avoiding it be covered by the loaded ckpt
         if os.path.exists(rec_config['pretrained_path']) and freeze_rec:
             model.rec_encoder.load_state_dict(torch.load(rec_config['pretrained_path'], map_location="cpu"))
+
         ans_type = cfg.get('ans_type')
         
         model.set_answer_type(mode=ans_type)
