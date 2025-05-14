@@ -1,1 +1,0 @@
-ln -s "$(ls -t $1/*.pth| head -1)" $1/checkpoint_best.pth

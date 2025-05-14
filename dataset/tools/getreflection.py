@@ -51,14 +51,21 @@ if __name__ == '__main__':
         his_label.append(eval(data[4]))
         his_title.append(data[5])
         title.append(data[6].replace('\n',''))
+    if None in his_label or 'None' in his_label:
+        wrong_data = pd.DataFrame({"uid":uid,'iid':iid,'label':label, 'his':his,'his_title':his_title,'title':title})
 
-    wrong_data = pd.DataFrame({"uid":uid,'iid':iid,'label':label, 'his':his,'his_label':his_label,'his_title':his_title,'title':title})
+        wrong_data['his_pad'] = wrong_data['his'].map(lambda x: [0]+x if len(x) < 10 else x)
 
-    wrong_data['his_pad'] = wrong_data['his'].map(lambda x: [0]+x if len(x) < 10 else x)
-    wrong_data['his_label_pad'] = wrong_data['his_label'].map(lambda x: [0]+x if len(x) < 10 else x)
+        wrong_data = wrong_data[['uid','iid','label','his_pad','his_title','title']]
+        wrong_data.columns = ['uid','iid','label','his','his_title','title']
+    else:
+        wrong_data = pd.DataFrame({"uid":uid,'iid':iid,'label':label, 'his':his,'his_label':his_label,'his_title':his_title,'title':title})
 
-    wrong_data = wrong_data[['uid','iid','label','his_pad','his_label_pad','his_title','title']]
-    wrong_data.columns = ['uid','iid','label','his','his_label','his_title','title']
+        wrong_data['his_pad'] = wrong_data['his'].map(lambda x: [0]+x if len(x) < 10 else x)
+        wrong_data['his_label_pad'] = wrong_data['his_label'].map(lambda x: [0]+x if len(x) < 10 else x)
+
+        wrong_data = wrong_data[['uid','iid','label','his_pad','his_label_pad','his_title','title']]
+        wrong_data.columns = ['uid','iid','label','his','his_label','his_title','title']
     print(f'data view:\n{wrong_data.head()}')
 
     # wrong_data.to_csv(wrong_file.replace('.txt','.csv'),index=False)
@@ -99,7 +106,7 @@ if __name__ == '__main__':
         'The correct answer is <answer>. Look into different aspects in the context of historical information, and explain the cause of the oversight in light of the previous analysis. Reanalyze to make a prediction about whether the user would be fond of the book titled <TargetItemTitle>?'
     ]
     
-    batch_size = 50
+    batch_size = 80
     total_batches = (len(wrong_data) + batch_size - 1) // batch_size  # 计算总批次
 
     for batch_idx in range(total_batches):

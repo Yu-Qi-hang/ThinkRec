@@ -394,17 +394,15 @@ class AmazonOOData(RecBaseDataset):
             self.annotation = self.annotation[used_columns]
             self.annotation.columns = renamed_columns
         
-        print("data path:", ann_paths[0], "data size:", self.annotation.shape)
         self.user_num = self.annotation['UserID'].max()+1
         self.item_num = self.annotation['TargetItemID'].max()+1
         self.items = list(set(self.annotation['TargetItemID']))
         self.text_processor = text_processor
         if self.user2group is not None:
             # print(type(self.annotation['UserID'][0]),type(self.user2group['user_id'][0]))
-            merged_df = pd.merge(self.annotation, self.user2group, left_on='UserID', right_on='user_id', how='left')
-            sorted_df = merged_df.sort_values(by=['group_id','UserID'])
-            self.annotation = sorted_df.drop(columns=['user_id', 'group_id']).reset_index(drop=True)
-            print('dataset reordered by group')
+            # merged_df = pd.merge(self.annotation, self.user2group, left_on='UserID', right_on='user_id', how='left')
+            self.annotation = self.annotation.sort_values(by=['UserID','TargetItemID']).reset_index(drop=True)
+            print('dataset reordered by UserID')
 
         if self.use_his:
             # 从self.annotation["InteractedItemIDs"]统计id热度
@@ -418,13 +416,14 @@ class AmazonOOData(RecBaseDataset):
             # self.id2hot_smoothed = np.array(list(self.id2hot_smoothed.values()))
             # if total_count > 0:
             #     self.id2hot_smoothed /= total_count
-            self.annotation = self.annotation[self.annotation['InteractedItemIDs'].map(lambda x: len(x)) > 2]
+            # self.annotation = self.annotation[self.annotation['InteractedItemIDs'].map(lambda x: len(x)) > 2]
             max_length_ = 0
             for x in self.annotation['InteractedItemIDs'].values:
                 max_length_ = max(max_length_, len(x))
             self.max_lenght = min(max_length_, seq_len) # average: only 50; 0915: 15 
             print("Movie OOD datasets, max history length:", self.max_lenght)
             logging.info("Movie OOD datasets, max history length:" + str(self.max_lenght))
+        print("data path:", ann_paths[0], "data size:", self.annotation.shape)
             
     def __getitem__(self, index):
 

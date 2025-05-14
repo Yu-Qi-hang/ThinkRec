@@ -396,7 +396,6 @@ class MiniGPT4Rec_v3(Rec2Base):
         loss_pred = nn.functional.binary_cross_entropy_with_logits(logits, samples['label'].float()) #+ 1e-7 * samples_encode['loss_c']
 
         if t_posi>=3:# reason 2 4500
-            # print(f'shapes:{loss_pred.shape} {outputs.loss.shape}\nloss_pred{loss_pred},loss{outputs.loss}')
             loss = self.loss_alpha * loss_pred + self.loss_beta * outputs.loss
         else:
             loss = self.loss_theta * loss_pred + self.loss_gamma * outputs.loss
@@ -405,18 +404,13 @@ class MiniGPT4Rec_v3(Rec2Base):
     def adaptive_lora(self,user):
         if self.rec_model_type == "sasrec":  # for sasrec, there is no user encoder but just seqs encoder, we take it to get user representation
             user_embeds = self.rec_encoder.seq_encoder(torch.tensor(user))[0].detach()
-            # print("user embeds shape:",user_embeds.shape)
-            # user_embeds = self.user2group[self.user2group['user_id']==user]['embedding']
         else:
             user_embeds = self.rec_encoder.user_encoder(torch.tensor(user), all_users=self.all_user_embeds).detach()
         cos_sim = F.cosine_similarity(user_embeds.unsqueeze(0), self.base_lora.to(user_embeds.device), dim=-1)
-        # 将余弦相似度转换为正数
-        # cos_sim = torch.clamp(cos_sim, min=1e-3)
-        # 归一化，使得每行的权重和为1
         tau = 0.1
         lora_weights = torch.softmax(cos_sim / tau, dim=-1)
         n_clusters = len(lora_weights)
-        print(f'user {user} lora_weights:',cos_sim,lora_weights)
+        print(f'lora_weights:',lora_weights)
         ent = -torch.sum(lora_weights * torch.log(lora_weights + 1e-10), dim=-1)
         if torch.max(lora_weights)>0.5+0.6/n_clusters:
             group_id = torch.argmax(lora_weights).item()
@@ -434,13 +428,6 @@ class MiniGPT4Rec_v3(Rec2Base):
                 adapter_name=str(user)
             )
             self.llama_model_lora.set_adapter(str(user))
-        # if torch.max(lora_weights)-torch.min(lora_weights)<0.2:
-            # print('set general adapter')
-            # self.llama_model_lora.set_adapter(f'group{cos_sim.shape[0]}')
-        # elif torch.max(lora_weights)-torch.min(lora_weights)>0.8:
-        #     group_id = torch.argmax(lora_weights).item()
-        #     print(f'set group {group_id} adapter')
-        #     self.llama_model_lora.set_adapter(f"group{group_id}")
         try:
             self.llama_model_lora.delete_adapter(self.active_user)
         except:
@@ -523,11 +510,17 @@ class MiniGPT4Rec_v3(Rec2Base):
         if self.eval_only:
             # ret['outputs'] = outputs
             reason_text = self.llama_tokenizer.batch_decode(**outputs, skip_special_tokens=True, clean_up_tokenization_spaces=False)
-            ret['reason_text'] = reason_text
+            # ret['reason_text'] = reason_text
+            # if 'reason' in samples:
+            #     ret['reason_ref'] = samples['reason']
             #存储生成的文本
-            print(samples['label'].cpu().tolist(),file=open(self.generete_file,'a'))
-            # print('\n'.join(['. '.join(ana.replace('\n',' ').split('. ')[:-1]) for ana in sample_embeds]),file=open(self.generete_file,'a'))
-            print('\n'.join(['. '.join(ana.replace('\n',' ').split('. ')[:-1]) for ana in reason_text]),file=open(self.generete_file,'a'))
+            # print(samples['label'].cpu().tolist(),file=open(self.generete_file,'a'))
+            # print(samples['UserID'],samples['TargetItemID'])
+            cleaned_text = [re.sub(r'\s+', ' ', ana.replace('\n', ' ').replace('\r', ' ').strip()) for ana in reason_text]
+            with open(self.generete_file,'a') as f:
+                for i in range(len(cleaned_text)):
+                    f.write(cleaned_text[i]+'\n')
+            # print('\n'.join(['. '.join(ana.replace('\n',' ').split('. ')[:-1]) for ana in reason_text]),file=open(self.generete_file,'a'))
             logits_ = torch.stack(outputs.logits, dim=1)[:,0,:][:,pos_ans_id]
         else:
             logits_ = outputs.logits[:,-t_posi,:][:,pos_ans_id]
