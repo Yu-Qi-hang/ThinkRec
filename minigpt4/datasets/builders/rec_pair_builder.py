@@ -7,110 +7,111 @@ from minigpt4.datasets.builders.rec_base_dataset_builder import RecBaseDatasetBu
 # from minigpt4.datasets.datasets.laion_dataset import LaionDataset
 # from minigpt4.datasets.datasets.cc_sbu_dataset import CCSBUDataset, CCSBUAlignDataset
 
-from minigpt4.datasets.datasets.rec_datasets import MoiveOOData, MoiveOOData_sasrec, AmazonOOData, AmazonOOData_sasrec
+from minigpt4.datasets.datasets.rec_datasets import AmazonOOData
+# from minigpt4.datasets.datasets.rec_datasets import MoiveOOData, MoiveOOData_sasrec, AmazonOOData, AmazonOOData_sasrec
 
 
 
-@registry.register_builder("movie_ood")
-class MoiveOODBuilder(RecBaseDatasetBuilder):
-    train_dataset_cls = MoiveOOData
+# @registry.register_builder("movie_ood")
+# class MoiveOODBuilder(RecBaseDatasetBuilder):
+#     train_dataset_cls = MoiveOOData
 
-    DATASET_CONFIG_DICT = {
-        "default": "configs/datasets/movielens/default.yaml",
-    }
-    def build_datasets(self,evaluate_only=False):
-        # at this point, all the annotations and image/videos should be all downloaded to the specified locations.
-        logging.info("Building datasets...")
-        self.build_processors()
+#     DATASET_CONFIG_DICT = {
+#         "default": "configs/datasets/movielens/default.yaml",
+#     }
+#     def build_datasets(self,evaluate_only=False):
+#         # at this point, all the annotations and image/videos should be all downloaded to the specified locations.
+#         logging.info("Building datasets...")
+#         self.build_processors()
 
-        build_info = self.config.build_info
-        storage_path = build_info.storage
+#         build_info = self.config.build_info
+#         storage_path = build_info.storage
 
-        datasets = dict()
+#         datasets = dict()
 
-        if not os.path.exists(storage_path):
-            warnings.warn("storage path {} does not exist.".format(storage_path))
+#         if not os.path.exists(storage_path):
+#             warnings.warn("storage path {} does not exist.".format(storage_path))
 
-        # create datasets
-        dataset_cls = self.train_dataset_cls
-        datasets['train'] = dataset_cls(
-            text_processor=self.text_processors["train"],
-            ann_paths=[os.path.join(storage_path, 'train')],
-            seq_len=build_info.seq_len
-        )
-        try:
-            datasets['valid'] = dataset_cls(
-            text_processor=self.text_processors["train"],
-            ann_paths=[os.path.join(storage_path, 'valid_small')],
-            seq_len=build_info.seq_len
-            )
-            #0915
-            datasets['test'] = dataset_cls(
-            text_processor=self.text_processors["train"],
-            ann_paths=[os.path.join(storage_path, 'test')],
-            seq_len=build_info.seq_len
-            )
-            if evaluate_only:
-                datasets['test_warm'] = dataset_cls(
-                text_processor=self.text_processors["train"],
-                ann_paths=[os.path.join(storage_path, 'test_warm_cold=warm')],
-                seq_len=build_info.seq_len
-                )
+#         # create datasets
+#         dataset_cls = self.train_dataset_cls
+#         datasets['train'] = dataset_cls(
+#             text_processor=self.text_processors["train"],
+#             ann_paths=[os.path.join(storage_path, 'train')],
+#             seq_len=build_info.seq_len
+#         )
+#         try:
+#             datasets['valid'] = dataset_cls(
+#             text_processor=self.text_processors["train"],
+#             ann_paths=[os.path.join(storage_path, 'valid_small')],
+#             seq_len=build_info.seq_len
+#             )
+#             #0915
+#             datasets['test'] = dataset_cls(
+#             text_processor=self.text_processors["train"],
+#             ann_paths=[os.path.join(storage_path, 'test')],
+#             seq_len=build_info.seq_len
+#             )
+#             if evaluate_only:
+#                 datasets['test_warm'] = dataset_cls(
+#                 text_processor=self.text_processors["train"],
+#                 ann_paths=[os.path.join(storage_path, 'test_warm_cold=warm')],
+#                 seq_len=build_info.seq_len
+#                 )
 
-                datasets['test_cold'] = dataset_cls(
-                text_processor=self.text_processors["train"],
-                ann_paths=[os.path.join(storage_path, 'test_warm_cold=cold')],
-                seq_len=build_info.seq_len
-                )
-        except:
-            print(os.path.join(storage_path, 'valid_small'), os.path.exists(os.path.join(storage_path, 'valid_small_seqs.pkl')))
-            raise FileNotFoundError("file not found.")
-        return datasets
+#                 datasets['test_cold'] = dataset_cls(
+#                 text_processor=self.text_processors["train"],
+#                 ann_paths=[os.path.join(storage_path, 'test_warm_cold=cold')],
+#                 seq_len=build_info.seq_len
+#                 )
+#         except:
+#             print(os.path.join(storage_path, 'valid_small'), os.path.exists(os.path.join(storage_path, 'valid_small_seqs.pkl')))
+#             raise FileNotFoundError("file not found.")
+#         return datasets
 
 
-@registry.register_builder("movie_ood_sasrec")
-class MoiveOODBuilder_sasrec(RecBaseDatasetBuilder):
-    train_dataset_cls = MoiveOOData_sasrec
+# @registry.register_builder("movie_ood_sasrec")
+# class MoiveOODBuilder_sasrec(RecBaseDatasetBuilder):
+#     train_dataset_cls = MoiveOOData_sasrec
 
-    DATASET_CONFIG_DICT = {
-        "default": "configs/datasets/movielens/default.yaml",
-    }
-    def build_datasets(self,evaluate_only=False):
-        # at this point, all the annotations and image/videos should be all downloaded to the specified locations.
-        logging.info("Building datasets...")
-        self.build_processors()
+#     DATASET_CONFIG_DICT = {
+#         "default": "configs/datasets/movielens/default.yaml",
+#     }
+#     def build_datasets(self,evaluate_only=False):
+#         # at this point, all the annotations and image/videos should be all downloaded to the specified locations.
+#         logging.info("Building datasets...")
+#         self.build_processors()
 
-        build_info = self.config.build_info
-        storage_path = build_info.storage
+#         build_info = self.config.build_info
+#         storage_path = build_info.storage
 
-        datasets = dict()
+#         datasets = dict()
 
-        if not os.path.exists(storage_path):
-            warnings.warn("storage path {} does not exist.".format(storage_path))
+#         if not os.path.exists(storage_path):
+#             warnings.warn("storage path {} does not exist.".format(storage_path))
 
-        # create datasets
-        dataset_cls = self.train_dataset_cls
-        datasets['train'] = dataset_cls(
-            text_processor=self.text_processors["train"],
-            ann_paths=[os.path.join(storage_path, 'train')],
-            seq_len=build_info.seq_len
-        )
-        try:
-            datasets['valid'] = dataset_cls(
-            text_processor=self.text_processors["train"],
-            ann_paths=[os.path.join(storage_path, 'valid_small')],
-            seq_len=build_info.seq_len
-            )
-            #0915
-            datasets['test'] = dataset_cls(
-            text_processor=self.text_processors["train"],
-            ann_paths=[os.path.join(storage_path, 'test')],
-            seq_len=build_info.seq_len
-            )
-        except:
-            print(os.path.join(storage_path, 'valid_small'), os.path.exists(os.path.join(storage_path, 'valid_small_seqs.pkl')))
-            raise FileNotFoundError("file not found.")
-        return datasets
+#         # create datasets
+#         dataset_cls = self.train_dataset_cls
+#         datasets['train'] = dataset_cls(
+#             text_processor=self.text_processors["train"],
+#             ann_paths=[os.path.join(storage_path, 'train')],
+#             seq_len=build_info.seq_len
+#         )
+#         try:
+#             datasets['valid'] = dataset_cls(
+#             text_processor=self.text_processors["train"],
+#             ann_paths=[os.path.join(storage_path, 'valid_small')],
+#             seq_len=build_info.seq_len
+#             )
+#             #0915
+#             datasets['test'] = dataset_cls(
+#             text_processor=self.text_processors["train"],
+#             ann_paths=[os.path.join(storage_path, 'test')],
+#             seq_len=build_info.seq_len
+#             )
+#         except:
+#             print(os.path.join(storage_path, 'valid_small'), os.path.exists(os.path.join(storage_path, 'valid_small_seqs.pkl')))
+#             raise FileNotFoundError("file not found.")
+#         return datasets
 
 
 
@@ -232,46 +233,46 @@ class AmazonOODBuilder(RecBaseDatasetBuilder):
         return datasets
 
 
-@registry.register_builder("amazon_ood_sasrec")
-class AmazonOODBuilder_sasrec(RecBaseDatasetBuilder):
-    train_dataset_cls = AmazonOOData_sasrec
+# @registry.register_builder("amazon_ood_sasrec")
+# class AmazonOODBuilder_sasrec(RecBaseDatasetBuilder):
+#     train_dataset_cls = AmazonOOData_sasrec
 
-    DATASET_CONFIG_DICT = {
-        "default": "configs/datasets/amazon/default.yaml",
-    }
-    def build_datasets(self,evaluate_only=False):
-        # at this point, all the annotations and image/videos should be all downloaded to the specified locations.
-        logging.info("Building datasets...")
-        self.build_processors()
+#     DATASET_CONFIG_DICT = {
+#         "default": "configs/datasets/amazon/default.yaml",
+#     }
+#     def build_datasets(self,evaluate_only=False):
+#         # at this point, all the annotations and image/videos should be all downloaded to the specified locations.
+#         logging.info("Building datasets...")
+#         self.build_processors()
 
-        build_info = self.config.build_info
-        storage_path = build_info.storage
+#         build_info = self.config.build_info
+#         storage_path = build_info.storage
 
-        datasets = dict()
+#         datasets = dict()
 
-        if not os.path.exists(storage_path):
-            warnings.warn("storage path {} does not exist.".format(storage_path))
+#         if not os.path.exists(storage_path):
+#             warnings.warn("storage path {} does not exist.".format(storage_path))
 
-        # create datasets
-        dataset_cls = self.train_dataset_cls
-        datasets['train'] = dataset_cls(
-            text_processor=self.text_processors["train"],
-            ann_paths=[os.path.join(storage_path, 'train')],
-            seq_len=build_info.seq_len
-        )
-        try:
-            datasets['valid'] = dataset_cls(
-            text_processor=self.text_processors["train"],
-            ann_paths=[os.path.join(storage_path, 'valid_small')],
-            seq_len=build_info.seq_len
-            )
-            #0915
-            datasets['test'] = dataset_cls(
-            text_processor=self.text_processors["train"],
-            ann_paths=[os.path.join(storage_path, 'test')],
-            seq_len=build_info.seq_len
-            )
-        except:
-            print(os.path.join(storage_path, 'valid_small'), os.path.exists(os.path.join(storage_path, 'valid_small_seqs.pkl')))
-            raise FileNotFoundError("file not found.")
-        return datasets
+#         # create datasets
+#         dataset_cls = self.train_dataset_cls
+#         datasets['train'] = dataset_cls(
+#             text_processor=self.text_processors["train"],
+#             ann_paths=[os.path.join(storage_path, 'train')],
+#             seq_len=build_info.seq_len
+#         )
+#         try:
+#             datasets['valid'] = dataset_cls(
+#             text_processor=self.text_processors["train"],
+#             ann_paths=[os.path.join(storage_path, 'valid_small')],
+#             seq_len=build_info.seq_len
+#             )
+#             #0915
+#             datasets['test'] = dataset_cls(
+#             text_processor=self.text_processors["train"],
+#             ann_paths=[os.path.join(storage_path, 'test')],
+#             seq_len=build_info.seq_len
+#             )
+#         except:
+#             print(os.path.join(storage_path, 'valid_small'), os.path.exists(os.path.join(storage_path, 'valid_small_seqs.pkl')))
+#             raise FileNotFoundError("file not found.")
+#         return datasets

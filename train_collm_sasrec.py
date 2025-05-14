@@ -32,8 +32,6 @@ from minigpt4.tasks import *
 from torch.distributed.elastic.multiprocessing.errors import *
 
 
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Training")
 
@@ -97,7 +95,7 @@ def main():
     
     
     # cfg.model_cfg.get("user_num", "default")
-    data_name = list(datasets.keys())[0]
+    # data_name = list(datasets.keys())[0]
     
 
     # if cfg.model_cfg.rec_model == 'lightgcn':
@@ -122,9 +120,9 @@ def main():
                 # if n_clusters > 1:
                 #     cfg.model_cfg.user2group = os.path.join(data_dir,f'mf_user_group_{n_clusters}.csv')
 
-    train_ = pd.read_pickle(data_dir+"train_ood2.pkl")
-    valid_ = pd.read_pickle(data_dir+"valid_ood2.pkl")
-    test_ = pd.read_pickle(data_dir+"test_ood2.pkl")
+    train_ = pd.read_pickle(os.path.join(data_dir, "train_ood2.pkl"))
+    valid_ = pd.read_pickle(os.path.join(data_dir, "valid_ood2.pkl"))
+    test_ = pd.read_pickle(os.path.join(data_dir, "test_ood2.pkl"))
     user_num = max(train_.uid.max(),valid_.uid.max(),test_.uid.max())+1
     item_num = max(train_.iid.max(),valid_.iid.max(),test_.iid.max())+1
     

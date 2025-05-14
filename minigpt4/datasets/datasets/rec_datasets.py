@@ -109,214 +109,214 @@ def convert_title_list(titles):
     return ", ".join(titles)
 
 
-class MoiveOOData(RecBaseDataset):
-    def __init__(self, text_processor=None, ann_paths=None, seq_len=None):
-        super().__init__()
-        # self.vis_root = vis_root
-        # self.annotation = pd.read_csv(ann_paths[0],sep='\t', index_col=None,header=0)[['uid','iid','title','sessionItems', 'sessionItemTitles']]
-        ann_paths = ann_paths[0].split("=")
-        self.annotation = pd.read_pickle(ann_paths[0]+"_ood2.pkl").reset_index(drop=True)
+# class MoiveOOData(RecBaseDataset):
+#     def __init__(self, text_processor=None, ann_paths=None, seq_len=None):
+#         super().__init__()
+#         # self.vis_root = vis_root
+#         # self.annotation = pd.read_csv(ann_paths[0],sep='\t', index_col=None,header=0)[['uid','iid','title','sessionItems', 'sessionItemTitles']]
+#         ann_paths = ann_paths[0].split("=")
+#         self.annotation = pd.read_pickle(ann_paths[0]+"_ood2.pkl").reset_index(drop=True)
 
-        ## warm test:
-        if "warm" in ann_paths:
-            self.annotation = self.annotation[self.annotation['warm'].isin([1])].copy()
-        if "cold" in ann_paths:
-            self.annotation = self.annotation[self.annotation['not_cold'].isin([0])].copy()
+#         ## warm test:
+#         if "warm" in ann_paths:
+#             self.annotation = self.annotation[self.annotation['warm'].isin([1])].copy()
+#         if "cold" in ann_paths:
+#             self.annotation = self.annotation[self.annotation['not_cold'].isin([0])].copy()
 
-        self.use_his = False
-        self.prompt_flag = False
+#         self.use_his = False
+#         self.prompt_flag = False
 
-        if 'sessionItems' in self.annotation.columns or 'his' in self.annotation.columns:
-            used_columns = ['uid','iid','title','his', 'his_title','label']
-            renamed_columns = ['UserID','TargetItemID','TargetItemTitle', 'InteractedItemIDs', 'InteractedItemTitles','label']
-            if 'not_cold' in self.annotation.columns:
-                used_columns.append("not_cold")
-                renamed_columns.append("prompt_flag")
-                self.prompt_flag = True
+#         if 'sessionItems' in self.annotation.columns or 'his' in self.annotation.columns:
+#             used_columns = ['uid','iid','title','his', 'his_title','label']
+#             renamed_columns = ['UserID','TargetItemID','TargetItemTitle', 'InteractedItemIDs', 'InteractedItemTitles','label']
+#             if 'not_cold' in self.annotation.columns:
+#                 used_columns.append("not_cold")
+#                 renamed_columns.append("prompt_flag")
+#                 self.prompt_flag = True
 
-            self.use_his = True
-            self.annotation = self.annotation[used_columns]
-            self.annotation.columns = renamed_columns
+#             self.use_his = True
+#             self.annotation = self.annotation[used_columns]
+#             self.annotation.columns = renamed_columns
         
-            self.annotation["InteractedItemIDs"] = self.annotation["InteractedItemIDs"].map(list)
-            self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"].map(list)
-            # self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"] #.map(convert_title_list)
-        else:
-            used_columns = ['uid','iid','title','label']
-            renamed_columns = ['UserID','TargetItemID','TargetItemTitle','label']
-            if 'not_cold' in self.annotation.columns:
-                used_columns.append('not_cold')
-                renamed_columns.append("prompt_flag")
-                self.prompt_flag = True
-            self.annotation = self.annotation[used_columns]
-            self.annotation.columns = renamed_columns
+#             self.annotation["InteractedItemIDs"] = self.annotation["InteractedItemIDs"].map(list)
+#             self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"].map(list)
+#             # self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"] #.map(convert_title_list)
+#         else:
+#             used_columns = ['uid','iid','title','label']
+#             renamed_columns = ['UserID','TargetItemID','TargetItemTitle','label']
+#             if 'not_cold' in self.annotation.columns:
+#                 used_columns.append('not_cold')
+#                 renamed_columns.append("prompt_flag")
+#                 self.prompt_flag = True
+#             self.annotation = self.annotation[used_columns]
+#             self.annotation.columns = renamed_columns
         
-        print("data path:", ann_paths[0], "data size:", self.annotation.shape)
-        self.user_num = self.annotation['UserID'].max()+1
-        self.item_num = self.annotation['TargetItemID'].max()+1
-        self.text_processor = text_processor
+#         print("data path:", ann_paths[0], "data size:", self.annotation.shape)
+#         self.user_num = self.annotation['UserID'].max()+1
+#         self.item_num = self.annotation['TargetItemID'].max()+1
+#         self.text_processor = text_processor
         
         
-        if self.use_his:
-            max_length_ = 0
-            for x in self.annotation['InteractedItemIDs'].values:
-                max_length_ = max(max_length_, len(x))
-            self.max_lenght = min(max_length_, seq_len) # average: only 50; 0915: 15 
-            print("Movie OOD datasets, max history length:", self.max_lenght)
-            logging.info("Movie OOD datasets, max history length:" + str(self.max_lenght))
+#         if self.use_his:
+#             max_length_ = 0
+#             for x in self.annotation['InteractedItemIDs'].values:
+#                 max_length_ = max(max_length_, len(x))
+#             self.max_lenght = min(max_length_, seq_len) # average: only 50; 0915: 15 
+#             print("Movie OOD datasets, max history length:", self.max_lenght)
+#             logging.info("Movie OOD datasets, max history length:" + str(self.max_lenght))
             
-    def __getitem__(self, index):
+#     def __getitem__(self, index):
 
-        # TODO this assumes image input, not general enough
-        ann = self.annotation.iloc[index]
-        if self.use_his:
-            a = ann['InteractedItemIDs']
-            InteractedNum = len(a)
-            if a[0] == 0:
-                InteractedNum -= 1
+#         # TODO this assumes image input, not general enough
+#         ann = self.annotation.iloc[index]
+#         if self.use_his:
+#             a = ann['InteractedItemIDs']
+#             InteractedNum = len(a)
+#             if a[0] == 0:
+#                 InteractedNum -= 1
 
-            if len(a) < self.max_lenght:
-                b = [0]* (self.max_lenght-len(a)) # assuming padding idx is zero
-                b.extend(a)
-            elif len(a)> self.max_lenght:
-                b = a[-self.max_lenght:]
-                InteractedNum = self.max_lenght
-            else:
-                b = a
-            one_sample = {
-                "UserID": ann['UserID'],
-                "InteractedItemIDs_pad": np.array(b),
-                "InteractedItemIDs": ann['InteractedItemIDs'],
-                "InteractedItemTitles": convert_title_list_v2(ann['InteractedItemTitles'][-InteractedNum:]),
-                "TargetItemID": ann["TargetItemID"],
-                "TargetItemTitle": "\""+ann["TargetItemTitle"].strip(' ')+"\"",
-                "InteractedNum": InteractedNum,
-                "label": ann['label']
-            }
-            if self.prompt_flag:
-                one_sample['prompt_flag'] = ann['prompt_flag']
-            return one_sample 
-        else:
-            one_sample = {
-                "UserID": ann['UserID'],
-                # "InteractedItemIDs_pad": None,
-                # # "InteractedItemIDs": ann['InteractedItemIDs'],
-                # "InteractedItemTitles": None,
-                "TargetItemID": ann["TargetItemID"],
-                "TargetItemTitle": ann["TargetItemTitle"].strip(' '),
-                # "InteractedNum": None,
-                "label": ann['label']
-            }
-            if self.prompt_flag:
-                one_sample['prompt_flag'] = ann['prompt_flag']
-            return one_sample 
+#             if len(a) < self.max_lenght:
+#                 b = [0]* (self.max_lenght-len(a)) # assuming padding idx is zero
+#                 b.extend(a)
+#             elif len(a)> self.max_lenght:
+#                 b = a[-self.max_lenght:]
+#                 InteractedNum = self.max_lenght
+#             else:
+#                 b = a
+#             one_sample = {
+#                 "UserID": ann['UserID'],
+#                 "InteractedItemIDs_pad": np.array(b),
+#                 "InteractedItemIDs": ann['InteractedItemIDs'],
+#                 "InteractedItemTitles": convert_title_list_v2(ann['InteractedItemTitles'][-InteractedNum:]),
+#                 "TargetItemID": ann["TargetItemID"],
+#                 "TargetItemTitle": "\""+ann["TargetItemTitle"].strip(' ')+"\"",
+#                 "InteractedNum": InteractedNum,
+#                 "label": ann['label']
+#             }
+#             if self.prompt_flag:
+#                 one_sample['prompt_flag'] = ann['prompt_flag']
+#             return one_sample 
+#         else:
+#             one_sample = {
+#                 "UserID": ann['UserID'],
+#                 # "InteractedItemIDs_pad": None,
+#                 # # "InteractedItemIDs": ann['InteractedItemIDs'],
+#                 # "InteractedItemTitles": None,
+#                 "TargetItemID": ann["TargetItemID"],
+#                 "TargetItemTitle": ann["TargetItemTitle"].strip(' '),
+#                 # "InteractedNum": None,
+#                 "label": ann['label']
+#             }
+#             if self.prompt_flag:
+#                 one_sample['prompt_flag'] = ann['prompt_flag']
+#             return one_sample 
 
 
-class MoiveOOData_sasrec(RecBaseDataset):
-    def __init__(self, text_processor=None, ann_paths=None, seq_len=None, sas_seq_len=25):
-        super().__init__()
-        # self.vis_root = vis_root
-        # self.annotation = pd.read_csv(ann_paths[0],sep='\t', index_col=None,header=0)[['uid','iid','title','sessionItems', 'sessionItemTitles']]
-        ann_paths = ann_paths[0].split("=")
-        self.annotation = pd.read_pickle(ann_paths[0]+"_ood2.pkl").reset_index(drop=True)
-        # self.annotation = pd.read_pickle(ann_paths[0]+"_ood2.pkl").reset_index(drop=True)
+# class MoiveOOData_sasrec(RecBaseDataset):
+#     def __init__(self, text_processor=None, ann_paths=None, seq_len=None, sas_seq_len=25):
+#         super().__init__()
+#         # self.vis_root = vis_root
+#         # self.annotation = pd.read_csv(ann_paths[0],sep='\t', index_col=None,header=0)[['uid','iid','title','sessionItems', 'sessionItemTitles']]
+#         ann_paths = ann_paths[0].split("=")
+#         self.annotation = pd.read_pickle(ann_paths[0]+"_ood2.pkl").reset_index(drop=True)
+#         # self.annotation = pd.read_pickle(ann_paths[0]+"_ood2.pkl").reset_index(drop=True)
         
-        self.use_his = False
-        self.prompt_flag = False
-        self.sas_seq_len = sas_seq_len
+#         self.use_his = False
+#         self.prompt_flag = False
+#         self.sas_seq_len = sas_seq_len
 
-        if 'sessionItems' in self.annotation.columns or 'his' in self.annotation.columns:
-            used_columns = ['uid','iid','title','his', 'his_title','label']
-            renamed_columns = ['UserID','TargetItemID','TargetItemTitle', 'InteractedItemIDs', 'InteractedItemTitles','label']
-            if 'not_cold' in self.annotation.columns:
-                used_columns.append("not_cold")
-                renamed_columns.append("prompt_flag")
-                self.prompt_flag = True
+#         if 'sessionItems' in self.annotation.columns or 'his' in self.annotation.columns:
+#             used_columns = ['uid','iid','title','his', 'his_title','label']
+#             renamed_columns = ['UserID','TargetItemID','TargetItemTitle', 'InteractedItemIDs', 'InteractedItemTitles','label']
+#             if 'not_cold' in self.annotation.columns:
+#                 used_columns.append("not_cold")
+#                 renamed_columns.append("prompt_flag")
+#                 self.prompt_flag = True
 
-            self.use_his = True
-            self.annotation = self.annotation[used_columns]
-            self.annotation.columns = renamed_columns
+#             self.use_his = True
+#             self.annotation = self.annotation[used_columns]
+#             self.annotation.columns = renamed_columns
         
-            self.annotation["InteractedItemIDs"] = self.annotation["InteractedItemIDs"].map(list)
-            self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"].map(list)
-            self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"] #.map(convert_title_list)
-        else:
-            used_columns = ['uid','iid','title','label']
-            renamed_columns = ['UserID','TargetItemID','TargetItemTitle','label']
-            if 'not_cold' in self.annotation.columns:
-                used_columns.append('not_cold')
-                renamed_columns.append("prompt_flag")
-                self.prompt_flag = True
-            self.annotation = self.annotation[used_columns]
-            self.annotation.columns = renamed_columns
+#             self.annotation["InteractedItemIDs"] = self.annotation["InteractedItemIDs"].map(list)
+#             self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"].map(list)
+#             self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"] #.map(convert_title_list)
+#         else:
+#             used_columns = ['uid','iid','title','label']
+#             renamed_columns = ['UserID','TargetItemID','TargetItemTitle','label']
+#             if 'not_cold' in self.annotation.columns:
+#                 used_columns.append('not_cold')
+#                 renamed_columns.append("prompt_flag")
+#                 self.prompt_flag = True
+#             self.annotation = self.annotation[used_columns]
+#             self.annotation.columns = renamed_columns
         
-        print("data path:", ann_paths[0], "data size:", self.annotation.shape)
-        self.user_num = self.annotation['UserID'].max()+1
-        self.item_num = self.annotation['TargetItemID'].max()+1
-        self.text_processor = text_processor
+#         print("data path:", ann_paths[0], "data size:", self.annotation.shape)
+#         self.user_num = self.annotation['UserID'].max()+1
+#         self.item_num = self.annotation['TargetItemID'].max()+1
+#         self.text_processor = text_processor
         
         
-        if self.use_his:
-            max_length_ = 0
-            for x in self.annotation['InteractedItemIDs'].values:
-                max_length_ = max(max_length_, len(x))
-            self.max_lenght = min(max_length_, seq_len) # average: only 50; 0915: 15 
-            print("Movie OOD datasets, max history length:", self.max_lenght)
-            logging.info("Movie OOD datasets, max history length:" + str(self.max_lenght))
+#         if self.use_his:
+#             max_length_ = 0
+#             for x in self.annotation['InteractedItemIDs'].values:
+#                 max_length_ = max(max_length_, len(x))
+#             self.max_lenght = min(max_length_, seq_len) # average: only 50; 0915: 15 
+#             print("Movie OOD datasets, max history length:", self.max_lenght)
+#             logging.info("Movie OOD datasets, max history length:" + str(self.max_lenght))
             
-    def __getitem__(self, index):
+#     def __getitem__(self, index):
 
-        # TODO this assumes image input, not general enough
-        ann = self.annotation.iloc[index]
-        if self.use_his:
-            a = ann['InteractedItemIDs']
-            InteractedNum = len(a)
-            if a[0] == 0:
-                InteractedNum -= 1
+#         # TODO this assumes image input, not general enough
+#         ann = self.annotation.iloc[index]
+#         if self.use_his:
+#             a = ann['InteractedItemIDs']
+#             InteractedNum = len(a)
+#             if a[0] == 0:
+#                 InteractedNum -= 1
 
-            if len(a) < self.max_lenght:
-                b = [0]* (self.max_lenght-len(a)) # assuming padding idx is zero
-                b.extend(a)
-            elif len(a)> self.max_lenght:
-                b = a[-self.max_lenght:]
-                InteractedNum = self.max_lenght
-            else:
-                b = a
+#             if len(a) < self.max_lenght:
+#                 b = [0]* (self.max_lenght-len(a)) # assuming padding idx is zero
+#                 b.extend(a)
+#             elif len(a)> self.max_lenght:
+#                 b = a[-self.max_lenght:]
+#                 InteractedNum = self.max_lenght
+#             else:
+#                 b = a
             
-            if len(a) < self.sas_seq_len: # used for sasrec
-                c = [0]*(self.sas_seq_len - len(a))
-                c.extend(a)
-            elif len(a) >= self.sas_seq_len:
-                c = a[-self.sas_seq_len:]
+#             if len(a) < self.sas_seq_len: # used for sasrec
+#                 c = [0]*(self.sas_seq_len - len(a))
+#                 c.extend(a)
+#             elif len(a) >= self.sas_seq_len:
+#                 c = a[-self.sas_seq_len:]
 
-            one_sample = {
-                "UserID": ann['UserID'],
-                "InteractedItemIDs_pad": np.array(b),
-                "InteractedItemIDs": ann['InteractedItemIDs'],
-                "InteractedItemTitles": convert_title_list_v2(ann['InteractedItemTitles'][-InteractedNum:]),
-                "TargetItemID": ann["TargetItemID"],
-                "TargetItemTitle": "\""+ann["TargetItemTitle"].strip(' ')+"\"",
-                "InteractedNum": InteractedNum,
-                "label": ann['label'],
-                "sas_seq": np.array(c)
-            }
-            if self.prompt_flag:
-                one_sample['prompt_flag'] = ann['prompt_flag']
-            return one_sample 
-        else:
-            one_sample = {
-                "UserID": ann['UserID'],
-                # "InteractedItemIDs_pad": None,
-                # # "InteractedItemIDs": ann['InteractedItemIDs'],
-                # "InteractedItemTitles": None,
-                "TargetItemID": ann["TargetItemID"],
-                "TargetItemTitle": ann["TargetItemTitle"].strip(' '),
-                # "InteractedNum": None,
-                "label": ann['label']
-            }
-            if self.prompt_flag:
-                one_sample['prompt_flag'] = ann['prompt_flag']
-            return one_sample 
+#             one_sample = {
+#                 "UserID": ann['UserID'],
+#                 "InteractedItemIDs_pad": np.array(b),
+#                 "InteractedItemIDs": ann['InteractedItemIDs'],
+#                 "InteractedItemTitles": convert_title_list_v2(ann['InteractedItemTitles'][-InteractedNum:]),
+#                 "TargetItemID": ann["TargetItemID"],
+#                 "TargetItemTitle": "\""+ann["TargetItemTitle"].strip(' ')+"\"",
+#                 "InteractedNum": InteractedNum,
+#                 "label": ann['label'],
+#                 "sas_seq": np.array(c)
+#             }
+#             if self.prompt_flag:
+#                 one_sample['prompt_flag'] = ann['prompt_flag']
+#             return one_sample 
+#         else:
+#             one_sample = {
+#                 "UserID": ann['UserID'],
+#                 # "InteractedItemIDs_pad": None,
+#                 # # "InteractedItemIDs": ann['InteractedItemIDs'],
+#                 # "InteractedItemTitles": None,
+#                 "TargetItemID": ann["TargetItemID"],
+#                 "TargetItemTitle": ann["TargetItemTitle"].strip(' '),
+#                 # "InteractedNum": None,
+#                 "label": ann['label']
+#             }
+#             if self.prompt_flag:
+#                 one_sample['prompt_flag'] = ann['prompt_flag']
+#             return one_sample 
 
 
 class AmazonOOData(RecBaseDataset):
@@ -545,109 +545,109 @@ class AmazonOOData(RecBaseDataset):
                 }
         return filtered_dict
 
-class AmazonOOData_sasrec(RecBaseDataset):
-    def __init__(self, text_processor=None, ann_paths=None, seq_len=None, sas_seq_len=20):
-        super().__init__()
-        # self.vis_root = vis_root
-        # self.annotation = pd.read_csv(ann_paths[0],sep='\t', index_col=None,header=0)[['uid','iid','title','sessionItems', 'sessionItemTitles']]
-        self.annotation = pd.read_pickle(ann_paths[0]+"_ood2.pkl").reset_index(drop=True)
+# class AmazonOOData_sasrec(RecBaseDataset):
+#     def __init__(self, text_processor=None, ann_paths=None, seq_len=None, sas_seq_len=20):
+#         super().__init__()
+#         # self.vis_root = vis_root
+#         # self.annotation = pd.read_csv(ann_paths[0],sep='\t', index_col=None,header=0)[['uid','iid','title','sessionItems', 'sessionItemTitles']]
+#         self.annotation = pd.read_pickle(ann_paths[0]+"_ood2.pkl").reset_index(drop=True)
         
-        self.use_his = False
-        self.prompt_flag = False
-        self.sas_seq_len = sas_seq_len
+#         self.use_his = False
+#         self.prompt_flag = False
+#         self.sas_seq_len = sas_seq_len
 
-        if 'sessionItems' in self.annotation.columns or 'his' in self.annotation.columns:
-            used_columns = ['uid','iid','title','his', 'his_title','label']
-            renamed_columns = ['UserID','TargetItemID','TargetItemTitle', 'InteractedItemIDs', 'InteractedItemTitles','label']
-            if 'not_cold' in self.annotation.columns:
-                used_columns.append("not_cold")
-                renamed_columns.append("prompt_flag")
-                self.prompt_flag = True
+#         if 'sessionItems' in self.annotation.columns or 'his' in self.annotation.columns:
+#             used_columns = ['uid','iid','title','his', 'his_title','label']
+#             renamed_columns = ['UserID','TargetItemID','TargetItemTitle', 'InteractedItemIDs', 'InteractedItemTitles','label']
+#             if 'not_cold' in self.annotation.columns:
+#                 used_columns.append("not_cold")
+#                 renamed_columns.append("prompt_flag")
+#                 self.prompt_flag = True
 
-            self.use_his = True
-            self.annotation = self.annotation[used_columns]
-            self.annotation.columns = renamed_columns
+#             self.use_his = True
+#             self.annotation = self.annotation[used_columns]
+#             self.annotation.columns = renamed_columns
         
-            self.annotation["InteractedItemIDs"] = self.annotation["InteractedItemIDs"].map(list)
-            self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"].map(list)
-            self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"] #.map(convert_title_list)
-        else:
-            used_columns = ['uid','iid','title','label']
-            renamed_columns = ['UserID','TargetItemID','TargetItemTitle','label']
-            if 'not_cold' in self.annotation.columns:
-                used_columns.append('not_cold')
-                renamed_columns.append("prompt_flag")
-                self.prompt_flag = True
-            self.annotation = self.annotation[used_columns]
-            self.annotation.columns = renamed_columns
+#             self.annotation["InteractedItemIDs"] = self.annotation["InteractedItemIDs"].map(list)
+#             self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"].map(list)
+#             self.annotation["InteractedItemTitles"] = self.annotation["InteractedItemTitles"] #.map(convert_title_list)
+#         else:
+#             used_columns = ['uid','iid','title','label']
+#             renamed_columns = ['UserID','TargetItemID','TargetItemTitle','label']
+#             if 'not_cold' in self.annotation.columns:
+#                 used_columns.append('not_cold')
+#                 renamed_columns.append("prompt_flag")
+#                 self.prompt_flag = True
+#             self.annotation = self.annotation[used_columns]
+#             self.annotation.columns = renamed_columns
         
-        print("data path:", ann_paths[0], "data size:", self.annotation.shape)
-        self.user_num = self.annotation['UserID'].max()+1
-        self.item_num = self.annotation['TargetItemID'].max()+1
-        self.text_processor = text_processor
+#         print("data path:", ann_paths[0], "data size:", self.annotation.shape)
+#         self.user_num = self.annotation['UserID'].max()+1
+#         self.item_num = self.annotation['TargetItemID'].max()+1
+#         self.text_processor = text_processor
         
         
-        if self.use_his:
-            max_length_ = 0
-            for x in self.annotation['InteractedItemIDs'].values:
-                max_length_ = max(max_length_, len(x))
-            self.max_lenght = min(max_length_, seq_len) # average: only 50; 0915: 15 
-            print("Movie OOD datasets, max history length:", self.max_lenght)
-            logging.info("Movie OOD datasets, max history length:" + str(self.max_lenght))
+#         if self.use_his:
+#             max_length_ = 0
+#             for x in self.annotation['InteractedItemIDs'].values:
+#                 max_length_ = max(max_length_, len(x))
+#             self.max_lenght = min(max_length_, seq_len) # average: only 50; 0915: 15 
+#             print("Movie OOD datasets, max history length:", self.max_lenght)
+#             logging.info("Movie OOD datasets, max history length:" + str(self.max_lenght))
             
-    def __getitem__(self, index):
+#     def __getitem__(self, index):
 
-        # TODO this assumes image input, not general enough
-        ann = self.annotation.iloc[index]
-        if self.use_his:
-            a = ann['InteractedItemIDs']
-            InteractedNum = len(a)
-            if a[0] == 0:
-                InteractedNum -= 1
+#         # TODO this assumes image input, not general enough
+#         ann = self.annotation.iloc[index]
+#         if self.use_his:
+#             a = ann['InteractedItemIDs']
+#             InteractedNum = len(a)
+#             if a[0] == 0:
+#                 InteractedNum -= 1
 
-            if len(a) < self.max_lenght:
-                b = [0]* (self.max_lenght-len(a)) # assuming padding idx is zero
-                b.extend(a)
-            elif len(a)> self.max_lenght:
-                b = a[-self.max_lenght:]
-                InteractedNum = self.max_lenght
-            else:
-                b = a
+#             if len(a) < self.max_lenght:
+#                 b = [0]* (self.max_lenght-len(a)) # assuming padding idx is zero
+#                 b.extend(a)
+#             elif len(a)> self.max_lenght:
+#                 b = a[-self.max_lenght:]
+#                 InteractedNum = self.max_lenght
+#             else:
+#                 b = a
             
-            if len(a) < self.sas_seq_len: # used for sasrec
-                c = [0]*(self.sas_seq_len - len(a))
-                c.extend(a)
-            elif len(a) >= self.sas_seq_len:
-                c = a[-self.sas_seq_len:]
+#             if len(a) < self.sas_seq_len: # used for sasrec
+#                 c = [0]*(self.sas_seq_len - len(a))
+#                 c.extend(a)
+#             elif len(a) >= self.sas_seq_len:
+#                 c = a[-self.sas_seq_len:]
 
-            one_sample = {
-                "UserID": ann['UserID'],
-                "InteractedItemIDs_pad": np.array(b),
-                "InteractedItemIDs": ann['InteractedItemIDs'],
-                "InteractedItemTitles": convert_title_list_v2(ann['InteractedItemTitles'][-InteractedNum:]),
-                "TargetItemID": ann["TargetItemID"],
-                "TargetItemTitle": "\""+ann["TargetItemTitle"].strip(' ')+"\"",
-                "InteractedNum": InteractedNum,
-                "label": ann['label'],
-                "sas_seq": np.array(c)
-            }
-            if self.prompt_flag:
-                one_sample['prompt_flag'] = ann['prompt_flag']
-            return one_sample 
-        else:
-            one_sample = {
-                "UserID": ann['UserID'],
-                # "InteractedItemIDs_pad": None,
-                # # "InteractedItemIDs": ann['InteractedItemIDs'],
-                # "InteractedItemTitles": None,
-                "TargetItemID": ann["TargetItemID"],
-                "TargetItemTitle": ann["TargetItemTitle"].strip(' '),
-                # "InteractedNum": None,
-                "label": ann['label']
-            }
-            if self.prompt_flag:
-                one_sample['prompt_flag'] = ann['prompt_flag']
-            return one_sample 
+#             one_sample = {
+#                 "UserID": ann['UserID'],
+#                 "InteractedItemIDs_pad": np.array(b),
+#                 "InteractedItemIDs": ann['InteractedItemIDs'],
+#                 "InteractedItemTitles": convert_title_list_v2(ann['InteractedItemTitles'][-InteractedNum:]),
+#                 "TargetItemID": ann["TargetItemID"],
+#                 "TargetItemTitle": "\""+ann["TargetItemTitle"].strip(' ')+"\"",
+#                 "InteractedNum": InteractedNum,
+#                 "label": ann['label'],
+#                 "sas_seq": np.array(c)
+#             }
+#             if self.prompt_flag:
+#                 one_sample['prompt_flag'] = ann['prompt_flag']
+#             return one_sample 
+#         else:
+#             one_sample = {
+#                 "UserID": ann['UserID'],
+#                 # "InteractedItemIDs_pad": None,
+#                 # # "InteractedItemIDs": ann['InteractedItemIDs'],
+#                 # "InteractedItemTitles": None,
+#                 "TargetItemID": ann["TargetItemID"],
+#                 "TargetItemTitle": ann["TargetItemTitle"].strip(' '),
+#                 # "InteractedNum": None,
+#                 "label": ann['label']
+#             }
+#             if self.prompt_flag:
+#                 one_sample['prompt_flag'] = ann['prompt_flag']
+#             return one_sample 
 
 
 

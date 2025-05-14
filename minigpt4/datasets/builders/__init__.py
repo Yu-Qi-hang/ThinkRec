@@ -11,7 +11,8 @@ from minigpt4.datasets.builders.base_dataset_builder import load_dataset_config
 #     LaionBuilder,
 #     CCSBUAlignBuilder
 # )
-from minigpt4.datasets.builders.rec_pair_builder import MoiveOODBuilder, MoiveOODBuilder_sasrec,AmazonOODBuilder, AmazonOODBuilder_sasrec
+from minigpt4.datasets.builders.rec_pair_builder import AmazonOODBuilder
+# from minigpt4.datasets.builders.rec_pair_builder import MoiveOODBuilder, MoiveOODBuilder_sasrec,AmazonOODBuilder, AmazonOODBuilder_sasrec
 
 from minigpt4.common.registry import registry
 
@@ -21,10 +22,10 @@ __all__ = [
     # "CCSBUAlignBuilder",
     # "MovielensBuilder",
     # "AmazonBuilder",
-    'MoiveOODBuilder',
-    "MoiveOODBuilder_sasrec",
+    # 'MoiveOODBuilder',
+    # "MoiveOODBuilder_sasrec",
     "AmazonOODBuilder",
-    "AmazonOODBuilder_sasrec"
+    # "AmazonOODBuilder_sasrec"
 ]
 
 

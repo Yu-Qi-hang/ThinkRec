@@ -14,6 +14,7 @@ import torch.backends.cudnn as cudnn
 import minigpt4.tasks as tasks
 from minigpt4.common.config import Config
 from minigpt4.common.dist_utils import get_rank, init_distributed_mode
+from minigpt4.datasets.datasets.rec_gnndataset import GnnDataset
 from minigpt4.common.logger import setup_logger
 from minigpt4.common.optims import (
     LinearWarmupCosineLRScheduler,
@@ -35,7 +36,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Training")
 
     # parser.add_argument("--cfg-path", required=True, help="path to configuration file.")
-    parser.add_argument("--cfg-path", default='train_configs/minigpt4rec_pretrain_ood_cc.yaml', help="path to configuration file.")
+    parser.add_argument("--cfg-path", default='train_configs/minigpt4rec_pretrain_lgcn_ood_cc.yaml', help="path to configuration file.")
     parser.add_argument(
         "--options",
         nargs="+",
@@ -87,19 +88,11 @@ def main():
     # set after init_distributed_mode() to only log on master.
     setup_logger()
 
-    # cfg.pretty_print()
-
     task = tasks.setup_task(cfg)
     datasets = task.build_datasets(cfg)
-    # cfg.model_cfg.get("user_num", "default")
-    # data_name = list(datasets.keys())[0]
-    # data_dir = "/home/sist/zyang/LLM/datasets/ml-1m/"
-    # try: #  movie
-    #     data_dir = cfg.datasets_cfg.movie_ood.path
-    # except: # amazon
+
     data_dir = cfg.datasets_cfg.amazon_ood.path
     print("data dir:", data_dir)
-    # data_dir = "/data/zyang/datasets/ml-1m/"
     cfg.model_cfg.user2group = None
     if cfg.run_cfg.evaluate: #split table needed only evaluate step
         ckpt = cfg.model_cfg.ckpt
@@ -107,21 +100,28 @@ def main():
             lora_adapter = os.path.join('/'.join(ckpt.split('/')[:-1]),'lora_adapter')
             if os.path.exists(lora_adapter):
                 cfg.model_cfg.user2group = cfg.datasets_cfg.amazon_ood.build_info.user2group
-                # n_clusters = len(os.listdir(lora_adapter))
-                # if n_clusters > 1:
-                #     cfg.model_cfg.user2group = os.path.join(data_dir,f'mf_user_group_{n_clusters}.csv')
-
-    train_ = pd.read_pickle(os.path.join(data_dir, "train_ood2.pkl"))
-    valid_ = pd.read_pickle(os.path.join(data_dir, "valid_ood2.pkl"))
-    test_ = pd.read_pickle(os.path.join(data_dir, "test_ood2.pkl"))
-    user_num = max(train_.uid.max(),valid_.uid.max(),test_.uid.max())+1
-    item_num = max(train_.iid.max(),valid_.iid.max(),test_.iid.max())+1
-    
-    cfg.model_cfg.rec_config.user_num = int(user_num) #int(datasets[data_name]['train'].user_num)  #cfg.model_cfg.get("user_num",)
-    cfg.model_cfg.rec_config.item_num = int(item_num) #int(datasets[data_name]['train'].item_num) #cfg.model_cfg.get("item_num", datasets[data_name]['train'].item_num)
+        
+    if cfg.model_cfg.rec_model == 'lightgcn':
+        gnndata = GnnDataset(cfg.model_cfg.rec_config,data_dir)  #movie_ood (also used for amazon)
+        # cfg.model_cfg.Graph = gnndata.Graph
+        cfg.model_cfg.rec_config.user_num =  int(gnndata.m_users)  #cfg.model_cfg.get("user_num",)
+        cfg.model_cfg.rec_config.item_num = int(gnndata.n_items) #cfg.model_cfg.get("item_num", datasets[data_name]['train'].item_num)
+    else:
+        train_ = pd.read_pickle(os.path.join(data_dir, "train_ood2.pkl"))
+        valid_ = pd.read_pickle(os.path.join(data_dir, "valid_ood2.pkl"))
+        test_ = pd.read_pickle(os.path.join(data_dir, "test_ood2.pkl"))
+        user_num = max(train_.uid.max(),valid_.uid.max(),test_.uid.max())+1
+        item_num = max(train_.iid.max(),valid_.iid.max(),test_.iid.max())+1
+        cfg.model_cfg.rec_config.user_num = int(user_num) #int(datasets[data_name]['train'].user_num)  #cfg.model_cfg.get("user_num",)
+        cfg.model_cfg.rec_config.item_num = int(item_num) #int(datasets[data_name]['train'].item_num) #cfg.model_cfg.get("item_num", datasets[data_name]['train'].item_num)
+        
     cfg.pretty_print()
-
+    
     model = task.build_model(cfg)
+    
+    if cfg.model_cfg.rec_model == 'lightgcn':
+        model.rec_encoder._set_graph(gnndata.Graph)
+
     if len(model.llama_model_lora.peft_config) > 1:
         model.set_user2group(cfg.model_cfg.user2group)
     runner = get_runner_class(cfg)(

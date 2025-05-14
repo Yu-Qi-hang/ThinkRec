@@ -16,56 +16,6 @@ import datetime
 import time
 import os
 
-# def uAUC_me(user, predict, label):
-#     if not isinstance(predict,np.ndarray):
-#         predict = np.array(predict)
-#     if not isinstance(label,np.ndarray):
-#         label = np.array(label)
-#     predict = predict.squeeze()
-#     label = label.squeeze()
-
-#     start_time = time.time()
-#     u, inverse, counts = np.unique(user,return_inverse=True,return_counts=True) # sort in increasing
-#     index = np.argsort(inverse)
-#     candidates_dict = {}
-#     k = 0
-#     total_num = 0
-#     only_one_interaction = 0
-#     computed_u = []
-#     for u_i in u:
-#         start_id,end_id = total_num, total_num+counts[k]
-#         u_i_counts = counts[k]
-#         index_ui = index[start_id:end_id]
-#         if u_i_counts ==1:
-#             only_one_interaction += 1
-#             total_num += counts[k]
-#             k += 1
-#             continue
-#         # print(index_ui, predict.shape)
-#         candidates_dict[u_i] = [predict[index_ui], label[index_ui]]
-#         total_num += counts[k]
-        
-#         k+=1
-#     print("only one interaction users:",only_one_interaction)
-#     auc=[]
-#     only_one_class = 0
-
-#     for ui,pre_and_true in candidates_dict.items():
-#         pre_i,label_i = pre_and_true
-#         try:
-#             ui_auc = roc_auc_score(label_i,pre_i)
-#             auc.append(ui_auc)
-#             computed_u.append(ui)
-#         except:
-#             only_one_class += 1
-#             # print("only one class")
-        
-#     auc_for_user = np.array(auc)
-#     print("computed user:", auc_for_user.shape[0], "can not users:", only_one_class)
-#     uauc = auc_for_user.mean()
-#     print("uauc for validation Cost:", time.time()-start_time,'uauc:', uauc)
-#     return uauc, computed_u, auc_for_user
-
 
 class model_hyparameters(object):
     def __init__(self):
