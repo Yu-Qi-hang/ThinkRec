@@ -1,22 +1,29 @@
+# ThinkRec: Thinking-based recommendation via LLM
+
 ## 📁 Code Structure
-```
-├──minigpt4: Core code of ThinkRec, following the structure of CoLLM.
-    ├── models: Defines our ThinkRec model architecture.
-    ├── datasets: Defines dataset classes.
-    ├── task: A overall task class, defining the used model and datasets, training epoch and evaluation.
-    ├── runners: A runner class to train and evaluate a model based on a task.
-    ├── common: Commonly used functions.
-├──dataset: Dataset pre-processing.
-├──prompt: Used prompts.
-├──train_configs: Training configuration files, setting hyperparameters.
-├──train_collm_xx.py CoLLM training file.
-├──baseline_train_xx.py: Baseline training file.
-├──user_group.py dataset grouping file.
-├──text_eval.py: Evaluation of the generated text.
+```shell
+ThinkRec
+├── minigpt4: Core code of ThinkRec, following the structure of CoLLM.
+│   ├── models: Defines our ThinkRec model architecture.
+│   ├── datasets: Defines dataset classes.
+│   ├── task: A overall task class, defining the used model and datasets, training epoch and evaluation.
+│   ├── runners: A runner class to train and evaluate a model based on a task.
+│   └── common: Commonly used functions.
+├── dataset: Datasets processing files.
+│   ├── tools: General tools for dataset preprocessing.
+│   └── {dataset_name}: Files for preprocessing specific dataset.
+├── prompt: Used prompts.
+├── train_configs: Training configuration files, setting hyperparameters.
+├── train_collm_xx.py ThinkRec training file.
+├── train_xx.sh ThinkRec training scripts.
+├── baseline_train_xx.py: Baseline training file.
+├── user_group.py dataset grouping file.
+├── text_eval.py Evaluation of the generated text.
+└── eval_xx.py Evaluation scripts for performance.
 ```
 ## ⚙️ Environment Setup
 
-```
+```shell
 conda create -n thinkrec python=3.9.20
 conda activate thinkrec
 python -m pip install --upgrade pip==24.2
@@ -40,10 +47,12 @@ Download the pretrained Llama3-8B model from [here](https://huggingface.co/meta-
 
 ## 🚀 Model Training
 ### ⚡ small model
-```
+```shell
 python baseline_train_***.py --istrain --data_dir /path/to/datadir/ --save_path /path/to/savedir/
 ```
+
 ### 💡 ThinkRec
+
 ```shell
 #stage1 
 bash train_mf.sh 0 11119 reason stage1 /path/to/datadir/
