@@ -86,24 +86,27 @@ def evaluate_gen_quality(ref_file, gen_file, lang="en"):
     return results
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--ref_file", type=str, default="")
-    # parser.add_argument("--gen_file", type=str, default="")
-    # args = parser.parse_args()
-    dataset = ['book','yelp','ml1m']
-    method = ['prompt4nr','collm_stage1','collm_stage2','reason_stage2']
-    for i in range(len(dataset)):
-        for j in range(len(method)):
-            gen_file = f'/data/yuqihang/result/CoLLM/reproduce/{dataset[i]}/{method[j]}/gen.txt'
-            if j==3:
-                ref_file = f'/data/yuqihang/datasets/collm-datasets/{dataset[i]}du/reason/test.txt'
-            elif i==0:
-                ref_file = f'/data/yuqihang/datasets/collm-datasets/{dataset[i]}new/reason/test.txt'
-            else:
-                ref_file = f'/data/yuqihang/datasets/collm-datasets/{dataset[i]}/reason/test.txt'
-            results = evaluate_gen_quality(ref_file, gen_file, lang="en")
-            print("评估结果:",dataset[i],method[j])
-            for k, v in results.items():
-                print(f"{k}: {v:.4f}")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-r","--ref_file", type=str, default="")
+    parser.add_argument("-g","--gen_file", type=str, default="")
+    args = parser.parse_args()
+    results = evaluate_gen_quality(args.ref_file, args.gen_file, lang="en")
+    for k, v in results.items():
+        print(f"{k}: {v:.4f}")
+    # dataset = ['book','yelp','ml1m']
+    # method = ['prompt4nr','collm_stage1','collm_stage2','reason_stage2']
+    # for i in range(len(dataset)):
+    #     for j in range(len(method)):
+    #         gen_file = f'/data/yuqihang/result/CoLLM/reproduce/{dataset[i]}/{method[j]}/gen.txt'
+    #         if j==3:
+    #             ref_file = f'/data/yuqihang/datasets/collm-datasets/{dataset[i]}du/reason/test.txt'
+    #         elif i==0:
+    #             ref_file = f'/data/yuqihang/datasets/collm-datasets/{dataset[i]}new/reason/test.txt'
+    #         else:
+    #             ref_file = f'/data/yuqihang/datasets/collm-datasets/{dataset[i]}/reason/test.txt'
+    #         results = evaluate_gen_quality(ref_file, gen_file, lang="en")
+    #         print("评估结果:",dataset[i],method[j])
+    #         for k, v in results.items():
+    #             print(f"{k}: {v:.4f}")
 
 

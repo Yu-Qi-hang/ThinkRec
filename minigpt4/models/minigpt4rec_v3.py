@@ -253,6 +253,10 @@ class MiniGPT4Rec_v3(Rec2Base):
             if not isinstance(ckpt_path,str):
                 ckpt_path = ckpt_path[0]
             self.generete_file = ckpt_path.replace('.pth','')+'.txt'
+            while os.path.exists(self.generete_file):
+                # 获取时间戳
+                time_stamp = time.strftime("%y%m%d%H%M%S", time.localtime())
+                self.generete_file = self.generete_file.replace('.txt',f'_{time_stamp}.txt')
 
     def set_user2group(self, user2group):
         print(user2group)

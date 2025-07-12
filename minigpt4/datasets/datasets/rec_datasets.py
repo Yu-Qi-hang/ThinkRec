@@ -341,6 +341,7 @@ class AmazonOOData(RecBaseDataset):
         # print(user2group,os.path.exists(user2group))
         # if os.path.exists(user2group) and ('valid' in ann_paths[0] or 'test' in ann_paths[0]):
         if os.path.exists(user2group) and 'test' in ann_paths[0]:
+        # if os.path.exists(user2group):
             self.user2group = pd.read_csv(user2group)[['user_id','cluster']]
             self.user2group.columns = ['user_id','group_id']
             self.user2group['user_id'] = self.user2group['user_id'].astype(int)
@@ -401,6 +402,9 @@ class AmazonOOData(RecBaseDataset):
         if self.user2group is not None:
             # print(type(self.annotation['UserID'][0]),type(self.user2group['user_id'][0]))
             # merged_df = pd.merge(self.annotation, self.user2group, left_on='UserID', right_on='user_id', how='left')
+            # sorted_df = merged_df[merged_df['group_id']!=2]
+            # print(sorted_df['group_id'].unique())
+            # self.annotation = sorted_df.drop(columns=['user_id', 'group_id']).reset_index(drop=True)
             self.annotation = self.annotation.sort_values(by=['UserID','TargetItemID']).reset_index(drop=True)
             print('dataset reordered by UserID')
 

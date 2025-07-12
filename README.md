@@ -41,9 +41,9 @@ Download the pretrained Llama3-8B model from [here](https://huggingface.co/meta-
 |--------|--------|
 | config.json | "unk_token_id": 128002 |
 | generation_config.json | "unk_token_id": 128002 |
-| special_tokens_map.json | "unk_token": "<unk>" |
-| tokenizer_config.json | "unk_token": "<unk>" |
-| tokenizer.json | "id": 128002,"content": "<unk>" |
+| special_tokens_map.json | "unk_token": "\<unk>" |
+| tokenizer_config.json | "unk_token": "\<unk>" |
+| tokenizer.json | "id": 128002,"content": "\<unk>" |
 
 ## 🚀 Model Training
 ### ⚡ small model
